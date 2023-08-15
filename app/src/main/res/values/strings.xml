@@ -1,0 +1,8 @@
+<resources>
+	<string name="app_name">android-sdk</string>
+	<string name="start_login_flow">Start login flow</string>
+	<string name="access_token">Access Token</string>
+	<string name="logout">Logout</string>
+	<string name="get_last_claims">Get last claims</string>
+	<string name="get_access_token">Get Access Token</string>
+</resources>

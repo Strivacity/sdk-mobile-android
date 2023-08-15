@@ -1,0 +1,160 @@
+plugins {
+	id 'com.android.library'
+	id 'maven-publish'
+	id 'signing'
+}
+
+android {
+	namespace 'com.strivacity.android.sdk'
+	compileSdk 33
+
+	defaultConfig {
+		minSdk 26
+		targetSdk 33
+
+		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+		consumerProguardFiles "consumer-rules.pro"
+		aarMetadata {
+			minCompileSdk = 26
+		}
+	}
+
+	buildTypes {
+		release {
+			minifyEnabled false
+			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+		}
+		debug {
+			testCoverageEnabled true
+		}
+	}
+
+	def manifestPlaceholdersForTests = [
+		'appAuthRedirectScheme': 'com.strivacity.android.sdk.test'
+	]
+
+	unitTestVariants.all {
+		it.mergedFlavor.manifestPlaceholders += manifestPlaceholdersForTests
+	}
+
+	testVariants.all {
+		it.mergedFlavor.manifestPlaceholders += manifestPlaceholdersForTests
+	}
+
+	testOptions {
+		animationsDisabled true
+		unitTests {
+			includeAndroidResources = true
+		}
+	}
+
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_11
+		targetCompatibility JavaVersion.VERSION_11
+	}
+
+	tasks.withType(JavaCompile) {
+		options.deprecation = true
+	}
+
+	packagingOptions {
+		resources {
+			merge 'META-INF/DEPENDENCIES'
+			merge 'META-INF/INDEX.LIST'
+			merge 'META-INF/io.netty.versions.properties'
+		}
+	}
+	publishing {
+		singleVariant('release') {
+			withSourcesJar()
+		}
+	}
+}
+
+dependencies {
+	// dependencies for the SDK
+	implementation 'androidx.appcompat:appcompat:1.6.1' // Apache 2.0
+	implementation 'net.openid:appauth:0.11.1' // Apache 2.0
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.0' // Apache 2.0
+
+	// dependencies for local tests
+	testImplementation 'junit:junit:4.13.2' // EPL 1.0
+	testImplementation 'org.mockito:mockito-core:5.3.1' // MIT
+	testImplementation 'org.hamcrest:hamcrest:2.2' // BSD 3-clause
+
+	// dependencies for instrument tests
+	androidTestImplementation ('androidx.test.ext:junit:1.1.5') // Apache 2.0
+	{
+		exclude group: 'org.hamcrest', module: 'hamcrest-core'
+	}
+	androidTestImplementation ('androidx.test:runner:1.5.2') // Apache 2.0
+	{
+		exclude group: 'org.hamcrest', module: 'hamcrest-core'
+	}
+	androidTestImplementation 'org.hamcrest:hamcrest:2.2' // BSD 3-clause
+	androidTestImplementation ('no.nav.security:mock-oauth2-server') // MIT
+	{
+		exclude group: 'org.hamcrest', module: 'hamcrest-core'
+		version {
+			strictly '0.5.3'
+		}
+	}
+	androidTestImplementation ('com.github.tomakehurst:wiremock-jre8:2.35.0') // Apache 2.0
+	{
+		// Allows us to use the Android version of Apache httpclient instead
+		exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+		// Resolves the Duplicate Class Exception
+		exclude group: 'org.ow2.asm', module: 'asm'
+		exclude group: 'com.google.guava', module: 'guava'
+	}
+	androidTestImplementation 'org.apache.httpcomponents:httpclient-android:4.3.5.1' // Apache 2.0
+	androidTestImplementation 'com.google.guava:guava:31.1-android' // Apache 2.0
+}
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			artifactId = 'sdk'
+			groupId = 'com.strivacity.android'
+			afterEvaluate {
+				from components.release
+			}
+			pom {
+				name = 'Strivacity Android SDK'
+				description = 'Android SDK for No-Code Customer Identity and Access Management'
+				url = 'https://github.com/Strivacity/sdk-mobile-android'
+				licenses {
+					license {
+						name = 'The Apache License, Version 2.0'
+						url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+					}
+				}
+				developers {
+					developer {
+						id = 'Strivacity'
+						name = 'Strivacity'
+						email = 'opensource@strivacity.com'
+					}
+				}
+				scm {
+					connection = 'scm:git:git://github.com/Strivacity/sdk-mobile-android.git'
+					developerConnection = 'scm:git:ssh://github.com/Strivacity/sdk-mobile-android.git'
+					url = 'https://github.com/Strivacity/sdk-mobile-android'
+				}
+			}
+		}
+	}
+	repositories {
+		maven {
+			url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+			credentials {
+				username = System.getenv('OSSRH_USERNAME')
+				password = System.getenv('OSSRH_PASSWORD')
+			}
+		}
+	}
+}
+
+signing {
+	sign publishing.publications.mavenJava
+}

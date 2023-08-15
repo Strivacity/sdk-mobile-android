@@ -1,0 +1,59 @@
+plugins {
+	id 'com.android.application'
+}
+
+android {
+	namespace 'com.strivacity.demoapp'
+	compileSdk 33
+
+	defaultConfig {
+		applicationId "com.strivacity.demoapp"
+		minSdk 26
+		targetSdk 33
+		versionCode 1
+		versionName "1.0"
+
+		manifestPlaceholders = [
+			'appAuthRedirectScheme': 'com.strivacity.demoapp'
+		]
+
+		Properties properties = new Properties()
+		File propertiesFile = project.file('credentials.properties')
+		if (!propertiesFile.exists()) {
+			properties.setProperty('issuer', '')
+			properties.setProperty('redirectUri', '')
+			properties.setProperty('clientId', '')
+			properties.setProperty('postLogoutUri', '')
+
+			Writer writer = new FileWriter(propertiesFile, false)
+			properties.store(writer, 'Change these variables to be able use demoapp')
+			writer.close()
+		}
+
+		properties.load(propertiesFile.newDataInputStream())
+		resValue "string", "ISSUER", properties.getProperty("issuer")
+		resValue "string", "REDIRECT_URI", properties.getProperty("redirectUri")
+		resValue "string", "CLIENT_ID", properties.getProperty("clientId")
+		resValue "string", "POST_LOGOUT_URI", properties.getProperty("postLogoutUri")
+	}
+
+	buildTypes {
+		release {
+			minifyEnabled false
+			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+		}
+	}
+
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_11
+		targetCompatibility JavaVersion.VERSION_11
+	}
+}
+
+dependencies {
+
+	implementation 'androidx.appcompat:appcompat:1.6.1'
+	implementation 'com.google.android.material:material:1.9.0'
+	implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+	implementation project(path: ':sdk-lib')
+}
