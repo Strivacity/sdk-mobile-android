@@ -61,6 +61,8 @@ After you created the provider instance you can add more configs to fit your flo
 provider
     .withScopes()                       // for defining scopes (openid, offline is included by default)
     .withLoginHint()                    // for defining login hint
+    .withAcrValues()                    // for defining acr values
+    .withUiLocales()                    // for defining ui locales
     .withPrompts()                      // for defining prompts
     .withPostLogoutUri()                // for defining redirect uri after logout
 ```

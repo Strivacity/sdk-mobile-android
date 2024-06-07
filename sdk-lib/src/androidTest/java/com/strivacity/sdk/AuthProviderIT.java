@@ -218,6 +218,8 @@ public class AuthProviderIT {
                 )
                 .withScopes("scope1", "scope2")
                 .withLoginHint("login_hint")
+                .withAcrValues("acr1 acr2")
+                .withUiLocales("hu-HU fi-FI")
                 .withPostLogoutUri(
                     Uri.parse(
                         "com.strivacity.android.sdk.test://localhost:" +
@@ -669,6 +671,8 @@ public class AuthProviderIT {
                 .getRequestedFor(WireMock.urlMatching("/default/authorize.*"))
                 .withQueryParam("response_type", WireMock.matching("code"))
                 .withQueryParam("login_hint", WireMock.matching("login_hint"))
+                .withQueryParam("acr_values", WireMock.matching("acr1 acr2"))
+                .withQueryParam("ui_locales", WireMock.matching("hu-HU fi-FI"))
                 .withQueryParam("scope", WireMock.containing("offline"))
                 .withQueryParam("scope", WireMock.containing("openid"))
                 .withQueryParam("scope", WireMock.containing("scope1"))
@@ -718,7 +722,7 @@ public class AuthProviderIT {
                 .withQueryParam(
                     "post_logout_redirect_uri",
                     WireMock.matching(
-                        "com.strivacity.android.sdk.test://localhost:8091/default/oauth2redirect"
+                        "com.strivacity.android.sdk.test://localhost:8091/default/oauth2PostLogoutRedirect"
                     )
                 )
                 .withQueryParam("id_token_hint", WireMock.matching(".+"))
