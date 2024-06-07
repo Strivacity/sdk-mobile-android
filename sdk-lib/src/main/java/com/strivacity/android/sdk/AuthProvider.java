@@ -59,6 +59,8 @@ public class AuthProvider {
     private String[] scopes;
     private String[] prompts;
     private String loginHint;
+    private String acrValues;
+    private String uiLocales;
     private Uri postLogoutUri;
 
     AuthActivityCallback authActivityCallback;
@@ -164,6 +166,36 @@ public class AuthProvider {
     @SuppressWarnings("unused")
     public AuthProvider withLoginHint(String loginHint) {
         this.loginHint = loginHint;
+        return this;
+    }
+
+    /**
+     * With this method, you can define the acr values.
+     *
+     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
+     *
+     * @param acrValues Requested authentication context class reference values
+     * @return {@link AuthProvider} instance
+     */
+    @NonNull
+    @SuppressWarnings("unused")
+    public AuthProvider withAcrValues(String acrValues) {
+        this.acrValues = acrValues;
+        return this;
+    }
+
+    /**
+     * With this method, you can define the ui locales.
+     *
+     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
+     *
+     * @param uiLocales End-user's preferred languages
+     * @return {@link AuthProvider} instance
+     */
+    @NonNull
+    @SuppressWarnings("unused")
+    public AuthProvider withUiLocales(String uiLocales) {
+        this.uiLocales = uiLocales;
         return this;
     }
 
@@ -525,6 +557,16 @@ public class AuthProvider {
 
         if (loginHint != null) {
             requestBuilder.setLoginHint(loginHint);
+        }
+
+        if (acrValues != null) {
+            requestBuilder.setAdditionalParameters(
+                Map.of("acr_values", acrValues)
+            );
+        }
+
+        if (uiLocales != null) {
+            requestBuilder.setUiLocales(this.uiLocales);
         }
 
         if (prompts != null) {
