@@ -10,7 +10,7 @@ This SDK allows you to integrate Strivacity’s policy-driven journeys into your
 
 This SDK uses <https://appauth.io>, which follows the best practices from [RFC 8252 - OAuth 2.0 for Native Apps](https://tools.ietf.org/html/rfc8252),  including using in-app browser views like Android Custom Tabs. Embedded user-agents, known as web-views, are not supported due to usability and security reasons documented in [Section 8.12 of RFC 8252](https://tools.ietf.org/html/rfc8252#section-8.12).
 
-The SDK uses the [PKCE extension to OAuth](https://tools.ietf.org/html/rfc7636), which secures authorization codes in public clients when custom URI scheme redirects are used.
+The SDK uses the [PKCE extension to OAuth](https://tools.ietf.org/html/rfc7636) to ensure the secure exchange of authorization codes in public clients.
 
 ## Download
 
@@ -161,7 +161,7 @@ provider.checkAuthenticated(isAuthenticated -> {
 
 ## Author
 
-Strivacity [\[opensource@strivacity.com\](mailto:opensource@strivacity.com)](mailto:[opensource@strivacity.com](mailto:opensource@strivacity.com))
+Strivacity: [opensource@strivacity.com](mailto:opensource@strivacity.com)
 
 ## License
 
