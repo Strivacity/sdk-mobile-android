@@ -158,6 +158,29 @@ provider.checkAuthenticated(isAuthenticated -> {
     // add some logic here
 });
 ```
+## Building
+To build using gradle, there are a number of required dependencies:
+- openjdk-17-jdk
+- android-sdk
+  - Be sure to set the `ANDROID_HOME` environment variable
+- [Android Command-line tools](https://developer.android.com/studio#command-line-tools-only)
+  - Be sure to install at the correct location so binaries are located at `$ANDROID_HOME/cmdline-tools/<VERSION>/bin/`
+- npm
+
+
+## Publishing
+
+To publish this packages to Maven Central, you'll need to do the following:
+ - Ensure your `~/.gradle/gradle.properties` has the following values set:
+   - `signing.keyId` - 8-digit short key id. `gpg -K --keyid-format short` will display it
+   - `signing.password` - password of key
+   - `signing.secretKeyRingFile` - gpg keyring containing secret key
+ - Set `OSSRH_USERNAME` and `OSSRH_PASSWORD` environment variables containing sonatype nexus credentials
+ - Invoke the following command, with the appropriate version:
+```shell
+./gradlew -Pversion=2.1.0 -d publish
+```
+After successful publish, you will have to follow [these instructions](https://central.sonatype.org/publish/release/) to "Close" and "Drop" or "Release" your staging repository.  Once released, it will be sync'd to Maven central and should show up within a few minutes.
 
 ## Author
 
