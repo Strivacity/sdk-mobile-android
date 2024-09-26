@@ -6,6 +6,8 @@ import static org.hamcrest.Matchers.not;
 
 import android.util.Log;
 
+import androidx.core.util.Consumer;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,6 +23,11 @@ import net.openid.appauth.AuthorizationException;
 import net.openid.appauth.AuthorizationResponse;
 import net.openid.appauth.TokenResponse;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 @RunWith(MockitoJUnitRunner.class)
 public class AuthStateManagerTest {
 
@@ -35,11 +42,20 @@ public class AuthStateManagerTest {
     private AutoCloseable autoCloseable;
     private MockedStatic<Log> logMockedStatic;
 
+    private CompletableFuture<Void> waitForAsync;
+
     @Before
     public void setUp() {
         autoCloseable = MockitoAnnotations.openMocks(this);
 
-        Mockito.when(storage.getState()).thenReturn(authState);
+        Mockito
+            .doAnswer(ans -> {
+                Consumer<AuthState> authStateConsumer = ans.getArgument(0);
+                authStateConsumer.accept(authState);
+                return null;
+            })
+            .when(storage)
+            .getState(Mockito.any());
 
         logMockedStatic = Mockito.mockStatic(Log.class);
         logMockedStatic
@@ -47,6 +63,8 @@ public class AuthStateManagerTest {
             .thenReturn(0);
 
         authStateManager = new AuthStateManager(storage);
+
+        waitForAsync = new CompletableFuture<>();
     }
 
     @After
@@ -56,43 +74,70 @@ public class AuthStateManagerTest {
     }
 
     @Test
-    public void getCurrentStateFromStorage() {
-        AuthState currentState = authStateManager.getCurrentState();
-        assertThat(currentState, equalTo(authState));
-        Mockito.verify(storage, Mockito.times(1)).getState();
+    public void getCurrentStateFromStorage()
+        throws ExecutionException, InterruptedException, TimeoutException {
+        authStateManager.getCurrentState(currentState -> {
+            assertThat(currentState, equalTo(authState));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        Mockito.verify(storage, Mockito.times(1)).getState(Mockito.any());
     }
 
     @Test
-    public void getCurrentStateEmptyState() {
-        Mockito.when(storage.getState()).thenReturn(null);
+    public void getCurrentStateEmptyState()
+        throws ExecutionException, InterruptedException, TimeoutException {
+        Mockito
+            .doAnswer(ans -> {
+                Consumer<AuthState> authStateConsumer = ans.getArgument(0);
+                authStateConsumer.accept(null);
+                return null;
+            })
+            .when(storage)
+            .getState(Mockito.any());
 
-        AuthState currentState = authStateManager.getCurrentState();
-        assertThat(currentState, not(equalTo(authState)));
+        authStateManager.getCurrentState(currentState -> {
+            assertThat(currentState, not(equalTo(authState)));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
     }
 
     @Test
-    public void getCurrentStateFromSavedState() {
-        authStateManager.getCurrentState();
-        AuthState currentState = authStateManager.getCurrentState();
-        assertThat(currentState, equalTo(authState));
+    public void getCurrentStateFromSavedState()
+        throws ExecutionException, InterruptedException, TimeoutException {
+        authStateManager.getCurrentState(currentState -> {});
+        authStateManager.getCurrentState(currentState -> {
+            assertThat(currentState, equalTo(authState));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
         Mockito
             .verify(storage, Mockito.times(1)) // NOTE: called in the first line of the test
-            .getState();
+            .getState(Mockito.any());
     }
 
     @Test
-    public void setCurrentState() {
+    public void setCurrentState()
+        throws ExecutionException, InterruptedException, TimeoutException {
         authStateManager.setCurrentState(authState);
         Mockito
             .verify(storage, Mockito.times(1))
             .setState(Mockito.eq(authState));
-        AuthState currentState = authStateManager.getCurrentState();
-        assertThat(currentState, equalTo(authState));
-        Mockito.verify(storage, Mockito.times(0)).getState();
+        authStateManager.getCurrentState(currentState -> {
+            assertThat(currentState, equalTo(authState));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        Mockito.verify(storage, Mockito.times(0)).getState(Mockito.any());
     }
 
     @Test
-    public void updateCurrentStateWithAuthorizationResponse() {
+    public void updateCurrentStateWithAuthorizationResponse()
+        throws ExecutionException, InterruptedException, TimeoutException {
         AuthorizationResponse mockResponse = Mockito.mock(
             AuthorizationResponse.class
         );
@@ -103,14 +148,19 @@ public class AuthStateManagerTest {
         Mockito
             .verify(authState, Mockito.times(1))
             .update(Mockito.eq(mockResponse), Mockito.eq(mockException));
-        Mockito.verify(storage, Mockito.times(1)).getState();
-        AuthState currentState = authStateManager.getCurrentState();
-        assertThat(currentState, equalTo(authState));
-        Mockito.verify(storage, Mockito.times(1)).getState();
+        Mockito.verify(storage, Mockito.times(1)).getState(Mockito.any());
+        authStateManager.getCurrentState(currentState -> {
+            assertThat(currentState, equalTo(authState));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        Mockito.verify(storage, Mockito.times(1)).getState(Mockito.any());
     }
 
     @Test
-    public void updateCurrentStateWithTokenResponse() {
+    public void updateCurrentStateWithTokenResponse()
+        throws ExecutionException, InterruptedException, TimeoutException {
         TokenResponse mockResponse = Mockito.mock(TokenResponse.class);
         AuthorizationException mockException = Mockito.mock(
             AuthorizationException.class
@@ -119,17 +169,21 @@ public class AuthStateManagerTest {
         Mockito
             .verify(authState, Mockito.times(1))
             .update(Mockito.eq(mockResponse), Mockito.eq(mockException));
-        Mockito.verify(storage, Mockito.times(1)).getState();
-        AuthState currentState = authStateManager.getCurrentState();
-        assertThat(currentState, equalTo(authState));
-        Mockito.verify(storage, Mockito.times(1)).getState();
+        Mockito.verify(storage, Mockito.times(1)).getState(Mockito.any());
+        authStateManager.getCurrentState(currentState -> {
+            assertThat(currentState, equalTo(authState));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        Mockito.verify(storage, Mockito.times(1)).getState(Mockito.any());
     }
 
     @Test
     public void resetCurrentState() {
         authStateManager.resetCurrentState();
         Mockito.verify(storage, Mockito.times(1)).clear();
-        authStateManager.getCurrentState();
-        Mockito.verify(storage, Mockito.times(1)).getState();
+        authStateManager.getCurrentState(state -> {});
+        Mockito.verify(storage, Mockito.times(1)).getState(Mockito.any());
     }
 }

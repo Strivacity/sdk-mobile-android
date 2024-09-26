@@ -22,6 +22,11 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import net.openid.appauth.AuthState;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 @RunWith(MockitoJUnitRunner.class)
 public class StorageImplTest {
 
@@ -35,6 +40,8 @@ public class StorageImplTest {
 
     private AutoCloseable autoCloseable;
     private MockedStatic<Log> logMockedStatic;
+
+    private CompletableFuture<Void> waitForAsync;
 
     @Before
     public void setUp() {
@@ -57,6 +64,8 @@ public class StorageImplTest {
             .thenReturn(0);
 
         storage = new StorageImpl(mockContext);
+
+        waitForAsync = new CompletableFuture<>();
     }
 
     @After
@@ -66,7 +75,8 @@ public class StorageImplTest {
     }
 
     @Test
-    public void getStateFromStorageFound() {
+    public void getStateFromStorageFound()
+        throws ExecutionException, InterruptedException, TimeoutException {
         Mockito
             .when(
                 sharedPreferences.getString(
@@ -83,14 +93,18 @@ public class StorageImplTest {
             .when(() -> AuthState.jsonDeserialize(Mockito.eq("json string")))
             .thenReturn(authState);
 
-        AuthState stateFromStorage = storage.getState();
-        assertThat(stateFromStorage, equalTo(authState));
+        storage.getState(stateFromStorage -> {
+            assertThat(stateFromStorage, equalTo(authState));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
 
         mockedState.close();
     }
 
     @Test
-    public void getStateFromStorageNotFound() {
+    public void getStateFromStorageNotFound()
+        throws ExecutionException, InterruptedException, TimeoutException {
         Mockito
             .when(
                 sharedPreferences.getString(
@@ -100,12 +114,16 @@ public class StorageImplTest {
             )
             .thenReturn(null);
 
-        AuthState stateFromStorage = storage.getState();
-        assertThat(stateFromStorage, is(nullValue()));
+        storage.getState(stateFromStorage -> {
+            assertThat(stateFromStorage, is(nullValue()));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
     }
 
     @Test
-    public void getStateFromStorageExceptionThrownDuringJsonDeserialization() {
+    public void getStateFromStorageExceptionThrownDuringJsonDeserialization()
+        throws ExecutionException, InterruptedException, TimeoutException {
         Mockito
             .when(
                 sharedPreferences.getString(
@@ -122,8 +140,11 @@ public class StorageImplTest {
             .when(() -> AuthState.jsonDeserialize(Mockito.anyString()))
             .thenThrow(new JSONException(""));
 
-        AuthState stateFromStorage = storage.getState();
-        assertThat(stateFromStorage, is(nullValue()));
+        storage.getState(stateFromStorage -> {
+            assertThat(stateFromStorage, is(nullValue()));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
 
         mockedState.close();
     }

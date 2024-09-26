@@ -455,9 +455,14 @@ public class AuthProviderIT {
         verifyRefreshToken(0);
         verifyLogoutUrl(0);
 
-        Map<String, Object> claims = authProvider.getLastRetrievedClaims();
-        assertThat(claims, is(notNullValue()));
-        expectedClaims.forEach((s, o) -> assertThat(claims.get(s), equalTo(o)));
+        authProvider.getLastRetrievedClaims(claims -> {
+            assertThat(claims, is(notNullValue()));
+            expectedClaims.forEach((s, o) ->
+                assertThat(claims.get(s), equalTo(o))
+            );
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
 
         verifyWellKnown(1);
         verifyAuthorize(1);
@@ -467,10 +472,14 @@ public class AuthProviderIT {
     }
 
     @Test
-    public void getLastRetrievedClaimsNull() {
+    public void getLastRetrievedClaimsNull()
+        throws ExecutionException, InterruptedException, TimeoutException {
         enqueueCallback(TOKEN_EXPIRY);
-        Map<String, Object> claims = authProvider.getLastRetrievedClaims();
-        assertThat(claims, is(nullValue()));
+        authProvider.getLastRetrievedClaims(claims -> {
+            assertThat(claims, is(nullValue()));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
 
         verifyWellKnown(0);
         verifyAuthorize(0);
