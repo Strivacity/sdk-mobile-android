@@ -1,6 +1,7 @@
 package com.strivacity.android.sdk;
 
 import androidx.annotation.AnyThread;
+import androidx.core.util.Consumer;
 
 import net.openid.appauth.AuthState;
 
@@ -20,10 +21,10 @@ public interface Storage {
     void setState(AuthState state);
 
     /**
-     * Returns the auth state from the storage.
+     * Returns the auth state from storage
      *
-     * @return The state from the storage
+     * @param authStateConsumer returns the auth state or null
      */
     @AnyThread
-    AuthState getState();
+    void getState(Consumer<AuthState> authStateConsumer);
 }

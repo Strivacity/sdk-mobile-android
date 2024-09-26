@@ -3,6 +3,7 @@ package com.strivacity.android.sdk;
 import android.util.Log;
 
 import androidx.annotation.AnyThread;
+import androidx.core.util.Consumer;
 
 import net.openid.appauth.AuthState;
 import net.openid.appauth.AuthorizationException;
@@ -30,23 +31,24 @@ class AuthStateManager {
     }
 
     @AnyThread
-    public AuthState getCurrentState() {
+    public void getCurrentState(Consumer<AuthState> authStateConsumer) {
         if (currentState.get() != null) {
             Log.i(TAG, "currentState found");
-            return currentState.get();
+            authStateConsumer.accept(currentState.get());
+            return;
         }
 
         storageLock.lock();
-        AuthState storageState = storage.getState();
-        storageLock.unlock();
+        storage.getState(storageState -> {
+            if (storageState == null) {
+                Log.i(TAG, "creating new empty state");
+                storageState = new AuthState();
+            }
+            currentState.set(storageState);
 
-        if (storageState == null) {
-            Log.i(TAG, "creating new empty state");
-            storageState = new AuthState();
-        }
-        currentState.set(storageState);
-
-        return storageState;
+            storageLock.unlock();
+            authStateConsumer.accept(storageState);
+        });
     }
 
     @AnyThread
@@ -63,9 +65,10 @@ class AuthStateManager {
         AuthorizationResponse response,
         AuthorizationException exception
     ) {
-        AuthState current = getCurrentState();
-        current.update(response, exception);
-        setCurrentState(current);
+        getCurrentState(current -> {
+            current.update(response, exception);
+            setCurrentState(current);
+        });
     }
 
     @AnyThread
@@ -73,9 +76,10 @@ class AuthStateManager {
         TokenResponse response,
         AuthorizationException exception
     ) {
-        AuthState current = getCurrentState();
-        current.update(response, exception);
-        setCurrentState(current);
+        getCurrentState(current -> {
+            current.update(response, exception);
+            setCurrentState(current);
+        });
     }
 
     @AnyThread

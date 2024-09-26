@@ -127,11 +127,13 @@ provider.getAccessToken(callback);
 ## Get claims
 
 You have the possibility to get the claims from the last id token response (if it exists).  
-For this, call the getLastRetrievedClaims method which returns a Map object that contains the claims.  
+For this, call the getLastRetrievedClaims method which accept a Consumer that have a Map argument that contains the claims.  
 If there wasn't any claim, null returns.
 
 ```text
-Map<String, Object> claims = provider.getLastRetrievedClaims();
+provider.getLastRetrievedClaims((claims) -> {
+    // process claims
+});
 ```
 
 ## Perform logout
