@@ -75,7 +75,7 @@ android {
 dependencies {
 	// dependencies for the SDK
 	implementation 'androidx.appcompat:appcompat:1.6.1' // Apache 2.0
-	implementation 'net.openid:appauth:0.11.1' // Apache 2.0
+	api 'net.openid:appauth:0.11.1' // Apache 2.0
 	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.0' // Apache 2.0
 
 	// dependencies for local tests
