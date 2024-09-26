@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
+import androidx.core.util.Consumer;
+
 import org.json.JSONException;
 
 import net.openid.appauth.AuthState;
@@ -43,17 +45,17 @@ class StorageImpl implements Storage {
     }
 
     @Override
-    public AuthState getState() {
+    public void getState(Consumer<AuthState> authStateConsumer) {
         String state = storage.getString(STORE_NAME, null);
         if (state == null) {
-            return null;
-        }
-
-        try {
-            return AuthState.jsonDeserialize(state);
-        } catch (JSONException ignored) {
-            Log.i(TAG, "Failed to deserialize auth state");
-            return null;
+            authStateConsumer.accept(null);
+        } else {
+            try {
+                authStateConsumer.accept(AuthState.jsonDeserialize(state));
+            } catch (JSONException ignored) {
+                Log.i(TAG, "Failed to deserialize auth state");
+                authStateConsumer.accept(null);
+            }
         }
     }
 }

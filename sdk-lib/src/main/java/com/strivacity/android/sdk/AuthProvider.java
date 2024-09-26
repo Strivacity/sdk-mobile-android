@@ -274,102 +274,103 @@ public class AuthProvider {
                     return;
                 }
 
-                try {
-                    if (
-                        authStateManager
-                            .getCurrentState()
-                            .getAuthorizationServiceConfiguration() ==
-                        null ||
-                        !objectMapper
-                            .readTree(
-                                authStateManager
-                                    .getCurrentState()
-                                    .getAuthorizationServiceConfiguration()
-                                    .toJsonString()
-                            )
-                            .equals(
-                                objectMapper.readTree(
-                                    configuration.toJsonString()
+                authStateManager.getCurrentState(authState -> {
+                    try {
+                        if (
+                            authState.getAuthorizationServiceConfiguration() ==
+                            null ||
+                            !objectMapper
+                                .readTree(
+                                    authState
+                                        .getAuthorizationServiceConfiguration()
+                                        .toJsonString()
                                 )
-                            )
-                    ) {
-                        Log.i(TAG, "configuration changed");
+                                .equals(
+                                    objectMapper.readTree(
+                                        configuration.toJsonString()
+                                    )
+                                )
+                        ) {
+                            Log.i(TAG, "configuration changed");
+                            authStateManager.setCurrentState(
+                                new AuthState(configuration)
+                            );
+                        }
+                    } catch (JsonProcessingException ignored) {
+                        Log.i(
+                            TAG,
+                            "error happened during checking configuration equality, fallback to the new configuration"
+                        );
                         authStateManager.setCurrentState(
                             new AuthState(configuration)
                         );
                     }
-                } catch (JsonProcessingException ignored) {
-                    Log.i(
-                        TAG,
-                        "error happened during checking configuration equality, fallback to the new configuration"
-                    );
-                    authStateManager.setCurrentState(
-                        new AuthState(configuration)
-                    );
-                }
 
-                checkAuthenticated(isAuthenticated -> {
-                    if (isAuthenticated) {
-                        Log.i(TAG, "state is authorized");
+                    checkAuthenticated(isAuthenticated -> {
+                        if (isAuthenticated) {
+                            Log.i(TAG, "state is authorized");
 
-                        callback.success(
-                            authStateManager.getCurrentState().getAccessToken(),
-                            getLastRetrievedClaims()
-                        );
-                    } else {
-                        int flags = 0;
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            flags |= PendingIntent.FLAG_MUTABLE;
+                            callback.success(
+                                authState.getAccessToken(),
+                                extractClaimsFromAuthState(authState)
+                            );
+                        } else {
+                            int flags = 0;
+                            if (
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                            ) {
+                                flags |= PendingIntent.FLAG_MUTABLE;
+                            }
+
+                            authActivityCallback =
+                                new AuthActivityCallback() {
+                                    @Override
+                                    public void success(
+                                        AuthorizationResponse response
+                                    ) {
+                                        Log.i(
+                                            TAG,
+                                            "success callback, performing token request"
+                                        );
+                                        performTokenRequest(callback, response);
+                                    }
+
+                                    @Override
+                                    public void failure(
+                                        AuthFlowException exception
+                                    ) {
+                                        Log.i(TAG, "failure callback");
+                                        callback.failure(exception);
+                                    }
+                                };
+
+                            Intent completeIntent = new Intent(
+                                context,
+                                AuthActivity.class
+                            );
+                            PendingIntent completePendingIntent = PendingIntent.getActivity(
+                                context,
+                                REQUEST_CODE,
+                                completeIntent,
+                                flags
+                            );
+
+                            AuthorizationRequest authorizationRequest = createAuthorizationRequest(
+                                configuration
+                            );
+
+                            authService.performAuthorizationRequest(
+                                authorizationRequest,
+                                completePendingIntent,
+                                completePendingIntent,
+                                authService
+                                    .createCustomTabsIntentBuilder(
+                                        authorizationRequest.toUri()
+                                    )
+                                    .build()
+                            );
                         }
-
-                        authActivityCallback =
-                            new AuthActivityCallback() {
-                                @Override
-                                public void success(
-                                    AuthorizationResponse response
-                                ) {
-                                    Log.i(
-                                        TAG,
-                                        "success callback, performing token request"
-                                    );
-                                    performTokenRequest(callback, response);
-                                }
-
-                                @Override
-                                public void failure(
-                                    AuthFlowException exception
-                                ) {
-                                    Log.i(TAG, "failure callback");
-                                    callback.failure(exception);
-                                }
-                            };
-
-                        Intent completeIntent = new Intent(
-                            context,
-                            AuthActivity.class
-                        );
-                        PendingIntent completePendingIntent = PendingIntent.getActivity(
-                            context,
-                            REQUEST_CODE,
-                            completeIntent,
-                            flags
-                        );
-
-                        AuthorizationRequest authorizationRequest = createAuthorizationRequest(
-                            configuration
-                        );
-
-                        authService.performAuthorizationRequest(
-                            authorizationRequest,
-                            completePendingIntent,
-                            completePendingIntent,
-                            authService
-                                .createCustomTabsIntentBuilder(
-                                    authorizationRequest.toUri()
-                                )
-                                .build()
-                        );
-                    }
+                    });
                 });
             },
             defaultConnectionBuilder
@@ -392,9 +393,8 @@ public class AuthProvider {
     public void getAccessToken(@NonNull FlowResponseCallback callback) {
         Preconditions.checkNotNull(callback, "Callback cannot be null");
 
-        authStateManager
-            .getCurrentState()
-            .performActionWithFreshTokens(
+        authStateManager.getCurrentState(authState ->
+            authState.performActionWithFreshTokens(
                 authService,
                 (accessToken, idToken, ex) -> {
                     if (ex != null) {
@@ -408,26 +408,27 @@ public class AuthProvider {
                         return;
                     }
 
-                    callback.success(accessToken, getLastRetrievedClaims());
+                    callback.success(
+                        accessToken,
+                        extractClaimsFromAuthState(authState)
+                    );
                 }
-            );
+            )
+        );
     }
 
     /**
      * Returns claims from the last response of saved auth state.
      *
-     * @return Claims if is presented otherwise null
+     * @param claimConsumer Claims if is presented otherwise null
      */
-    @Nullable
     @SuppressWarnings("unused")
-    public Map<String, Object> getLastRetrievedClaims() {
-        IdToken parsedToken = authStateManager
-            .getCurrentState()
-            .getParsedIdToken();
-        if (parsedToken == null) {
-            return null;
-        }
-        return parsedToken.additionalClaims;
+    public void getLastRetrievedClaims(
+        Consumer<Map<String, Object>> claimConsumer
+    ) {
+        authStateManager.getCurrentState(authState ->
+            claimConsumer.accept(extractClaimsFromAuthState(authState))
+        );
     }
 
     /**
@@ -451,49 +452,57 @@ public class AuthProvider {
         Preconditions.checkNotNull(context, "Context cannot be null");
         Preconditions.checkNotNull(callback, "Callback cannot be null");
 
-        AuthorizationServiceConfiguration configuration = authStateManager
-            .getCurrentState()
-            .getAuthorizationServiceConfiguration();
+        authStateManager.getCurrentState(authState -> {
+            AuthorizationServiceConfiguration configuration = authState.getAuthorizationServiceConfiguration();
 
-        if (configuration == null) {
-            authStateManager.resetCurrentState();
-            callback.finish();
-        } else {
-            EndSessionRequest.Builder endSessionRequestBuilder = new EndSessionRequest.Builder(
-                configuration
-            )
-                .setIdTokenHint(
-                    authStateManager.getCurrentState().getIdToken()
+            if (configuration == null) {
+                authStateManager.resetCurrentState();
+                callback.finish();
+            } else {
+                EndSessionRequest.Builder endSessionRequestBuilder = new EndSessionRequest.Builder(
+                    configuration
+                )
+                    .setIdTokenHint(authState.getIdToken());
+
+                if (postLogoutUri != null) {
+                    endSessionRequestBuilder.setPostLogoutRedirectUri(
+                        postLogoutUri
+                    );
+                }
+
+                EndSessionRequest endSessionRequest = endSessionRequestBuilder.build();
+
+                int flags = 0;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    flags |= PendingIntent.FLAG_MUTABLE;
+                }
+
+                endSessionActivityCallback = callback::finish;
+
+                Intent endSessionIntent = new Intent(
+                    context,
+                    EndSessionActivity.class
                 );
 
-            if (postLogoutUri != null) {
-                endSessionRequestBuilder.setPostLogoutRedirectUri(
-                    postLogoutUri
+                authService.performEndSessionRequest(
+                    endSessionRequest,
+                    PendingIntent.getActivity(
+                        context,
+                        0,
+                        endSessionIntent,
+                        flags
+                    ),
+                    PendingIntent.getActivity(
+                        context,
+                        0,
+                        endSessionIntent,
+                        flags
+                    )
                 );
+
+                authStateManager.setCurrentState(new AuthState(configuration));
             }
-
-            EndSessionRequest endSessionRequest = endSessionRequestBuilder.build();
-
-            int flags = 0;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                flags |= PendingIntent.FLAG_MUTABLE;
-            }
-
-            endSessionActivityCallback = callback::finish;
-
-            Intent endSessionIntent = new Intent(
-                context,
-                EndSessionActivity.class
-            );
-
-            authService.performEndSessionRequest(
-                endSessionRequest,
-                PendingIntent.getActivity(context, 0, endSessionIntent, flags),
-                PendingIntent.getActivity(context, 0, endSessionIntent, flags)
-            );
-
-            authStateManager.setCurrentState(new AuthState(configuration));
-        }
+        });
     }
 
     /**
@@ -509,18 +518,14 @@ public class AuthProvider {
     public void checkAuthenticated(@NonNull Consumer<Boolean> authenticated) {
         Preconditions.checkNotNull(authenticated, "Consumer cannot be null");
 
-        if (
-            authStateManager.getCurrentState().isAuthorized() &&
-            !authStateManager.getCurrentState().getNeedsTokenRefresh()
-        ) {
-            Log.i(TAG, "authorized and don't need refresh token");
-            authenticated.accept(true);
-            return;
-        }
+        authStateManager.getCurrentState(authState -> {
+            if (authState.isAuthorized() && !authState.getNeedsTokenRefresh()) {
+                Log.i(TAG, "authorized and don't need refresh token");
+                authenticated.accept(true);
+                return;
+            }
 
-        authStateManager
-            .getCurrentState()
-            .performActionWithFreshTokens(
+            authState.performActionWithFreshTokens(
                 authService,
                 (accessToken, idToken, ex) -> {
                     Log.i(TAG, "refresh token request");
@@ -535,6 +540,7 @@ public class AuthProvider {
                     authenticated.accept(true);
                 }
             );
+        });
     }
 
     private AuthorizationRequest createAuthorizationRequest(
@@ -580,49 +586,61 @@ public class AuthProvider {
         FlowResponseCallback callback,
         AuthorizationResponse response
     ) {
-        try {
-            if (response == null) {
-                callback.failure(AuthFlowException.UNEXPECTED);
-                return;
-            }
+        if (response == null) {
+            callback.failure(AuthFlowException.UNEXPECTED);
+            return;
+        }
 
-            authService.performTokenRequest(
-                response.createTokenExchangeRequest(),
-                authStateManager.getCurrentState().getClientAuthentication(),
-                (tokenResponse, exception) -> {
-                    authStateManager.updateCurrentState(
-                        tokenResponse,
-                        exception
-                    );
-
-                    if (tokenResponse != null) {
-                        callback.success(
-                            tokenResponse.accessToken,
-                            getLastRetrievedClaims()
+        authStateManager.getCurrentState(authState -> {
+            try {
+                authService.performTokenRequest(
+                    response.createTokenExchangeRequest(),
+                    authState.getClientAuthentication(),
+                    (tokenResponse, exception) -> {
+                        authStateManager.updateCurrentState(
+                            tokenResponse,
+                            exception
                         );
-                    } else {
-                        if (exception != null) {
-                            callback.failure(
-                                AuthFlowException.of(
-                                    exception.error,
-                                    exception.errorDescription,
-                                    exception.getCause()
-                                )
+
+                        if (tokenResponse != null) {
+                            callback.success(
+                                tokenResponse.accessToken,
+                                extractClaimsFromAuthState(authState)
                             );
                         } else {
-                            callback.failure(AuthFlowException.UNEXPECTED);
+                            if (exception != null) {
+                                callback.failure(
+                                    AuthFlowException.of(
+                                        exception.error,
+                                        exception.errorDescription,
+                                        exception.getCause()
+                                    )
+                                );
+                            } else {
+                                callback.failure(AuthFlowException.UNEXPECTED);
+                            }
                         }
                     }
-                }
-            );
-        } catch (ClientAuthentication.UnsupportedAuthenticationMethod ex) {
-            callback.failure(
-                AuthFlowException.unsupportedAuthenticationMethod(
-                    ex.getUnsupportedAuthenticationMethod(),
-                    ex.getCause()
-                )
-            );
+                );
+            } catch (ClientAuthentication.UnsupportedAuthenticationMethod ex) {
+                callback.failure(
+                    AuthFlowException.unsupportedAuthenticationMethod(
+                        ex.getUnsupportedAuthenticationMethod(),
+                        ex.getCause()
+                    )
+                );
+            }
+        });
+    }
+
+    private Map<String, Object> extractClaimsFromAuthState(
+        AuthState authState
+    ) {
+        IdToken parsedToken = authState.getParsedIdToken();
+        if (parsedToken == null) {
+            return null;
         }
+        return parsedToken.additionalClaims;
     }
 
     interface AuthActivityCallback {
