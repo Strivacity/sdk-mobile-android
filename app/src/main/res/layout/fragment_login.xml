@@ -4,12 +4,12 @@
 	xmlns:tools="http://schemas.android.com/tools"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent" android:orientation="vertical"
-	android:padding="10dp" tools:context=".LoginActivity">
+	android:padding="10dp" tools:context=".LoginFragment">
 
-	<Button android:id="@+id/button2"
+	<Button android:id="@+id/startFlow"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content" android:layout_gravity="center"
-		android:onClick="startFlow" android:text="@string/start_login_flow" />
+		android:text="@string/start_login_flow" />
 
 	<TextView android:id="@+id/errortext"
 		android:layout_width="wrap_content"
