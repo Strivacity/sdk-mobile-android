@@ -420,6 +420,18 @@ public class AuthProviderIT {
         verifyTokenExchange(1);
         verifyRefreshToken(1);
         verifyLogoutUrl(0);
+
+        Thread.sleep(2000); // wait for token expiry
+
+        waitForAsync = new CompletableFuture<>();
+        authProvider.getAccessToken(flowResponseCallback);
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        verifyWellKnown(1);
+        verifyAuthorize(1);
+        verifyTokenExchange(1);
+        verifyRefreshToken(2);
+        verifyLogoutUrl(0);
     }
 
     @Test
@@ -592,6 +604,21 @@ public class AuthProviderIT {
         verifyAuthorize(1);
         verifyTokenExchange(1);
         verifyRefreshToken(1);
+        verifyLogoutUrl(0);
+
+        Thread.sleep(2000); // wait for token expiry
+
+        waitForAsync = new CompletableFuture<>();
+        authProvider.checkAuthenticated(aBoolean -> {
+            assertThat(aBoolean, is(true));
+            waitForAsync.complete(null);
+        });
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        verifyWellKnown(1);
+        verifyAuthorize(1);
+        verifyTokenExchange(1);
+        verifyRefreshToken(2);
         verifyLogoutUrl(0);
     }
 
