@@ -167,6 +167,7 @@ To build using gradle, there are a number of required dependencies:
   - Be sure to set the `ANDROID_HOME` environment variable
 - [Android Command-line tools](https://developer.android.com/studio#command-line-tools-only)
   - Be sure to install at the correct location so binaries are located at `$ANDROID_HOME/cmdline-tools/<VERSION>/bin/`
+  - Please note, the command-line tools include the `sdkmanager` binary, which is used during the build.  Before building, you must accept the sdkmanager licenses by invoking `sdkmanager --licenses`.
 - npm
 
 
@@ -177,7 +178,9 @@ To publish this packages to Maven Central, you'll need to do the following:
    - `signing.keyId` - 8-digit short key id. `gpg -K --keyid-format short` will display it
    - `signing.password` - password of key
    - `signing.secretKeyRingFile` - gpg keyring containing secret key
- - Set `OSSRH_USERNAME` and `OSSRH_PASSWORD` environment variables containing sonatype nexus credentials
+     - run `gpg --export-secret-keys -o your-keyring.gpg` to create the file
+ - Set `OSSRH_USERNAME` and `OSSRH_PASSWORD` environment variables containing sonatype nexus tokens
+   - Login to https://s01.oss.sonatype.org/, and use the User Token from your profile for these values
  - Invoke the following command, with the appropriate version:
 ```shell
 ./gradlew -Pversion=2.1.0 -d publish
