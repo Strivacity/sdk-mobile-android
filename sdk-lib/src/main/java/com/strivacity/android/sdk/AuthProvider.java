@@ -408,6 +408,8 @@ public class AuthProvider {
                         return;
                     }
 
+                    authStateManager.setCurrentState(authState);
+
                     callback.success(
                         accessToken,
                         extractClaimsFromAuthState(authState)
@@ -535,6 +537,8 @@ public class AuthProvider {
                         authenticated.accept(false);
                         return;
                     }
+
+                    authStateManager.setCurrentState(authState);
 
                     Log.i(TAG, "refreshed");
                     authenticated.accept(true);
