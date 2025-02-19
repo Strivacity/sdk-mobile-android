@@ -39,7 +39,10 @@ public class MainFragment extends Fragment {
         @Nullable Bundle savedInstanceState
     ) {
         TextView accessTokenTextView = view.findViewById(R.id.accessToken);
-        TableLayout claimTable = view.findViewById(R.id.table);
+        TableLayout claimTable = view.findViewById(R.id.claims);
+        TableLayout additionalParamsTable = view.findViewById(
+            R.id.additionalParams
+        );
 
         SharedViewModel viewModel = new ViewModelProvider(requireActivity())
             .get(SharedViewModel.class);
@@ -55,6 +58,7 @@ public class MainFragment extends Fragment {
                                 Log.i(TAG, "logout");
                                 accessTokenTextView.setText("");
                                 claimTable.removeAllViews();
+                                additionalParamsTable.removeAllViews();
                                 authProvider.logout(
                                     requireContext(),
                                     () -> {
@@ -119,6 +123,40 @@ public class MainFragment extends Fragment {
                                             accessTokenTextView.setText(
                                                 accessToken
                                             );
+                                            additionalParamsTable.removeAllViews();
+                                            authProvider.getLastTokenResponseAdditionalParameters(additionalParameters -> {
+                                                    Log.i(
+                                                        TAG,
+                                                        "there are additional parameters"
+                                                    );
+                                                    additionalParameters.forEach(
+                                                        (sk, sv) -> {
+                                                            TableRow row = new TableRow(
+                                                                requireContext()
+                                                            );
+                                                            TextView key = new TextView(
+                                                                requireContext()
+                                                            );
+                                                            key.setText(sk);
+                                                            key.setPadding(
+                                                                0,
+                                                                0,
+                                                                20,
+                                                                0
+                                                            );
+                                                            row.addView(key);
+                                                            TextView value = new TextView(
+                                                                requireContext()
+                                                            );
+                                                            value.setText(sv);
+                                                            row.addView(value);
+                                                            additionalParamsTable.addView(
+                                                                row
+                                                            );
+                                                        }
+                                                    );
+                                                }
+                                            );
                                         }
 
                                         @Override
@@ -131,6 +169,7 @@ public class MainFragment extends Fragment {
                                             );
                                             accessTokenTextView.setText("");
                                             claimTable.removeAllViews();
+                                            additionalParamsTable.removeAllViews();
 
                                             Bundle bundle = new Bundle();
                                             bundle.putString(
@@ -147,7 +186,8 @@ public class MainFragment extends Fragment {
                                                     bundle
                                                 );
                                         }
-                                    }
+                                    },
+                                    Map.of("testKey", "testValue")
                                 );
                             });
                     })
