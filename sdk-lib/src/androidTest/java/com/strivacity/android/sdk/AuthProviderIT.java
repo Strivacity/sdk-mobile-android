@@ -23,6 +23,7 @@ import com.github.tomakehurst.wiremock.extension.Parameters;
 import com.github.tomakehurst.wiremock.extension.ResponseTransformer;
 import com.github.tomakehurst.wiremock.http.Request;
 import com.github.tomakehurst.wiremock.http.Response;
+import com.github.tomakehurst.wiremock.matching.StringValuePattern;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -33,6 +34,7 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -51,6 +53,8 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -80,6 +84,7 @@ public class AuthProviderIT {
 
     private AuthFlowException expectedAuthFlowException;
     private Map<String, Object> expectedClaims;
+    private Map<String, String> expectedAdditionalParameters;
     private boolean endSessionCalled;
 
     // region setup
@@ -133,6 +138,16 @@ public class AuthProviderIT {
 
                     String newRawIdToken = newSignedJWT.serialize();
                     responseBodyAsJSON.put("id_token", newRawIdToken);
+
+                    if (expectedAdditionalParameters != null) {
+                        expectedAdditionalParameters.forEach((s, o) -> {
+                            try {
+                                responseBodyAsJSON.put(s, o);
+                            } catch (JSONException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                    }
 
                     responseBody = responseBodyAsJSON.toString();
                 } catch (Exception ignored) {}
@@ -255,6 +270,7 @@ public class AuthProviderIT {
 
         expectedAuthFlowException = null;
         expectedClaims = Map.of("key1", "value1", "key2", "value2");
+        expectedAdditionalParameters = null;
 
         waitForAsync = new CompletableFuture<>();
 
@@ -412,19 +428,35 @@ public class AuthProviderIT {
         Thread.sleep(2000); // wait for token expiry
 
         waitForAsync = new CompletableFuture<>();
-        authProvider.getAccessToken(flowResponseCallback);
+        authProvider.getAccessToken(
+            flowResponseCallback,
+            Map.of("testKey", "testValue")
+        );
         waitForAsync.get(10, TimeUnit.SECONDS);
 
         verifyWellKnown(1);
         verifyAuthorize(1);
         verifyTokenExchange(1);
-        verifyRefreshToken(1);
+        verifyRefreshToken(1, Map.of("testKey", "testValue"));
         verifyLogoutUrl(0);
 
         Thread.sleep(2000); // wait for token expiry
 
+        expectedAdditionalParameters = Map.of("testKeyParam", "testValueParam");
+
         waitForAsync = new CompletableFuture<>();
         authProvider.getAccessToken(flowResponseCallback);
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        waitForAsync = new CompletableFuture<>();
+        authProvider.getLastTokenResponseAdditionalParameters(stringStringMap -> {
+                assertThat(
+                    stringStringMap,
+                    equalTo(Map.of("testKeyParam", "testValueParam"))
+                );
+                waitForAsync.complete(null);
+            }
+        );
         waitForAsync.get(10, TimeUnit.SECONDS);
 
         verifyWellKnown(1);
@@ -594,25 +626,41 @@ public class AuthProviderIT {
         Thread.sleep(2000); // wait for token expiry
 
         waitForAsync = new CompletableFuture<>();
-        authProvider.checkAuthenticated(aBoolean -> {
-            assertThat(aBoolean, is(true));
-            waitForAsync.complete(null);
-        });
+        authProvider.checkAuthenticated(
+            aBoolean -> {
+                assertThat(aBoolean, is(true));
+                waitForAsync.complete(null);
+            },
+            Map.of("testKey", "testValue")
+        );
         waitForAsync.get(10, TimeUnit.SECONDS);
 
         verifyWellKnown(1);
         verifyAuthorize(1);
         verifyTokenExchange(1);
-        verifyRefreshToken(1);
+        verifyRefreshToken(1, Map.of("testKey", "testValue"));
         verifyLogoutUrl(0);
 
         Thread.sleep(2000); // wait for token expiry
+
+        expectedAdditionalParameters = Map.of("testKeyParam", "testValueParam");
 
         waitForAsync = new CompletableFuture<>();
         authProvider.checkAuthenticated(aBoolean -> {
             assertThat(aBoolean, is(true));
             waitForAsync.complete(null);
         });
+        waitForAsync.get(10, TimeUnit.SECONDS);
+
+        waitForAsync = new CompletableFuture<>();
+        authProvider.getLastTokenResponseAdditionalParameters(stringStringMap -> {
+                assertThat(
+                    stringStringMap,
+                    equalTo(Map.of("testKeyParam", "testValueParam"))
+                );
+                waitForAsync.complete(null);
+            }
+        );
         waitForAsync.get(10, TimeUnit.SECONDS);
 
         verifyWellKnown(1);
@@ -740,13 +788,27 @@ public class AuthProviderIT {
     }
 
     private void verifyRefreshToken(int count) {
+        verifyRefreshToken(count, null);
+    }
+
+    private void verifyRefreshToken(int count, Map<String, String> params) {
+        List<StringValuePattern> requestBodyMatcher = new ArrayList<>();
+        if (params != null) {
+            params.forEach((key, value) ->
+                requestBodyMatcher.add(WireMock.containing(key + "=" + value))
+            );
+        }
+        StringValuePattern matchers = requestBodyMatcher
+            .stream()
+            .reduce(
+                WireMock.containing("grant_type=refresh_token"),
+                StringValuePattern::and
+            );
         wireMockServer.verify(
             count,
             WireMock
                 .postRequestedFor(WireMock.urlMatching("/default/token"))
-                .withRequestBody(
-                    WireMock.containing("grant_type=refresh_token")
-                )
+                .withRequestBody(matchers)
         );
     }
 

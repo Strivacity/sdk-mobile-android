@@ -28,6 +28,7 @@ import net.openid.appauth.connectivity.ConnectionBuilder;
 import net.openid.appauth.connectivity.DefaultConnectionBuilder;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -250,6 +251,32 @@ public class AuthProvider {
         @NonNull Context context,
         @NonNull FlowResponseCallback callback
     ) {
+        startFlow(context, callback, Collections.emptyMap());
+    }
+
+    /**
+     * <p>Using this method you can perform a PKCE Authorization Code flow with token exchange.
+     * In the case of a successful login the {@link com.strivacity.android.sdk.FlowResponseCallback#success} method is called
+     * returning the accessToken and claims. If there is any error, the {@link com.strivacity.android.sdk.FlowResponseCallback#failure}
+     * method is called. If an authenticated state is found, then it returns the accessToken and claims without
+     * opening the login page in a custom tab.</p>
+     *
+     * <p>Please make sure your client's "Token endpoint authentication method" is set to "None" on admin console!</p>
+     *
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
+     *
+     * @param context Application context
+     * @param callback {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
+     * method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
+     * called from the main thread.
+     * @param refreshTokenAdditionalParams Additional key-value parameter for token refreshing
+     */
+    @SuppressWarnings("unused")
+    public void startFlow(
+        @NonNull Context context,
+        @NonNull FlowResponseCallback callback,
+        Map<String, String> refreshTokenAdditionalParams
+    ) {
         Preconditions.checkNotNull(context, "Context cannot be null");
         Preconditions.checkNotNull(callback, "Callback cannot be null");
 
@@ -306,71 +333,78 @@ public class AuthProvider {
                         );
                     }
 
-                    checkAuthenticated(isAuthenticated -> {
-                        if (isAuthenticated) {
-                            Log.i(TAG, "state is authorized");
+                    checkAuthenticated(
+                        isAuthenticated -> {
+                            if (isAuthenticated) {
+                                Log.i(TAG, "state is authorized");
 
-                            callback.success(
-                                authState.getAccessToken(),
-                                extractClaimsFromAuthState(authState)
-                            );
-                        } else {
-                            int flags = 0;
-                            if (
-                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                            ) {
-                                flags |= PendingIntent.FLAG_MUTABLE;
+                                callback.success(
+                                    authState.getAccessToken(),
+                                    extractClaimsFromAuthState(authState)
+                                );
+                            } else {
+                                int flags = 0;
+                                if (
+                                    Build.VERSION.SDK_INT >=
+                                    Build.VERSION_CODES.S
+                                ) {
+                                    flags |= PendingIntent.FLAG_MUTABLE;
+                                }
+
+                                authActivityCallback =
+                                    new AuthActivityCallback() {
+                                        @Override
+                                        public void success(
+                                            AuthorizationResponse response
+                                        ) {
+                                            Log.i(
+                                                TAG,
+                                                "success callback, performing token request"
+                                            );
+                                            performTokenRequest(
+                                                callback,
+                                                response
+                                            );
+                                        }
+
+                                        @Override
+                                        public void failure(
+                                            AuthFlowException exception
+                                        ) {
+                                            Log.i(TAG, "failure callback");
+                                            callback.failure(exception);
+                                        }
+                                    };
+
+                                Intent completeIntent = new Intent(
+                                    context,
+                                    AuthActivity.class
+                                );
+                                PendingIntent completePendingIntent = PendingIntent.getActivity(
+                                    context,
+                                    REQUEST_CODE,
+                                    completeIntent,
+                                    flags
+                                );
+
+                                AuthorizationRequest authorizationRequest = createAuthorizationRequest(
+                                    configuration
+                                );
+
+                                authService.performAuthorizationRequest(
+                                    authorizationRequest,
+                                    completePendingIntent,
+                                    completePendingIntent,
+                                    authService
+                                        .createCustomTabsIntentBuilder(
+                                            authorizationRequest.toUri()
+                                        )
+                                        .build()
+                                );
                             }
-
-                            authActivityCallback =
-                                new AuthActivityCallback() {
-                                    @Override
-                                    public void success(
-                                        AuthorizationResponse response
-                                    ) {
-                                        Log.i(
-                                            TAG,
-                                            "success callback, performing token request"
-                                        );
-                                        performTokenRequest(callback, response);
-                                    }
-
-                                    @Override
-                                    public void failure(
-                                        AuthFlowException exception
-                                    ) {
-                                        Log.i(TAG, "failure callback");
-                                        callback.failure(exception);
-                                    }
-                                };
-
-                            Intent completeIntent = new Intent(
-                                context,
-                                AuthActivity.class
-                            );
-                            PendingIntent completePendingIntent = PendingIntent.getActivity(
-                                context,
-                                REQUEST_CODE,
-                                completeIntent,
-                                flags
-                            );
-
-                            AuthorizationRequest authorizationRequest = createAuthorizationRequest(
-                                configuration
-                            );
-
-                            authService.performAuthorizationRequest(
-                                authorizationRequest,
-                                completePendingIntent,
-                                completePendingIntent,
-                                authService
-                                    .createCustomTabsIntentBuilder(
-                                        authorizationRequest.toUri()
-                                    )
-                                    .build()
-                            );
-                        }
-                    });
+                        },
+                        refreshTokenAdditionalParams
+                    );
                 });
             },
             defaultConnectionBuilder
@@ -391,11 +425,37 @@ public class AuthProvider {
      */
     @SuppressWarnings("unused")
     public void getAccessToken(@NonNull FlowResponseCallback callback) {
+        getAccessToken(callback, Collections.emptyMap());
+    }
+
+    /**
+     * Returns a valid accessToken if it is not expired, otherwise it tries to refresh it using the refresh token.
+     * If there is any error, the {@link com.strivacity.android.sdk.FlowResponseCallback#failure}
+     * method is called. Only the accessToken can have non null value in {@link com.strivacity.android.sdk.FlowResponseCallback#success}
+     * parameters. Claims are also returned if those are presented.
+     *
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
+     *
+     * @param callback {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
+     * method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
+     * called from the main thread.
+     * @param refreshTokenAdditionalParams Additional key-value parameter for token refreshing
+     */
+    @SuppressWarnings("unused")
+    public void getAccessToken(
+        @NonNull FlowResponseCallback callback,
+        @NonNull Map<String, String> refreshTokenAdditionalParams
+    ) {
         Preconditions.checkNotNull(callback, "Callback cannot be null");
+        Preconditions.checkNotNull(
+            refreshTokenAdditionalParams,
+            "Refresh token additional params cannot be null"
+        );
 
         authStateManager.getCurrentState(authState ->
             authState.performActionWithFreshTokens(
                 authService,
+                refreshTokenAdditionalParams,
                 (accessToken, idToken, ex) -> {
                     if (ex != null) {
                         callback.failure(
@@ -518,7 +578,29 @@ public class AuthProvider {
      */
     @SuppressWarnings("unused")
     public void checkAuthenticated(@NonNull Consumer<Boolean> authenticated) {
+        checkAuthenticated(authenticated, Collections.emptyMap());
+    }
+
+    /**
+     * With this method you can easily check if a state is authenticated or not. It also
+     * tries to refresh the access token if needed. If the state is not authenticated or
+     * it cannot refresh the access token, false returns, otherwise true.
+     *
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
+     *
+     * @param authenticated This returns if the state is authenticated or not
+     * @param refreshTokenAdditionalParams Additional parameters for token refreshing (can be accessible in refresh token hook)
+     */
+    @SuppressWarnings("unused")
+    public void checkAuthenticated(
+        @NonNull Consumer<Boolean> authenticated,
+        @NonNull Map<String, String> refreshTokenAdditionalParams
+    ) {
         Preconditions.checkNotNull(authenticated, "Consumer cannot be null");
+        Preconditions.checkNotNull(
+            refreshTokenAdditionalParams,
+            "Additional parameters cannot be null"
+        );
 
         authStateManager.getCurrentState(authState -> {
             if (authState.isAuthorized() && !authState.getNeedsTokenRefresh()) {
@@ -529,6 +611,7 @@ public class AuthProvider {
 
             authState.performActionWithFreshTokens(
                 authService,
+                refreshTokenAdditionalParams,
                 (accessToken, idToken, ex) -> {
                     Log.i(TAG, "refresh token request");
 
@@ -544,6 +627,34 @@ public class AuthProvider {
                     authenticated.accept(true);
                 }
             );
+        });
+    }
+
+    /**
+     * With this method you can get the last token response additional parameters. This can be
+     * useful if you are using token refresh hook and you would like to pass additional information
+     * back to your application.
+     *
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
+     *
+     * @param additionalParameters This returns additional parameters (can be empty if not exist)
+     */
+    public void getLastTokenResponseAdditionalParameters(
+        @NonNull Consumer<Map<String, String>> additionalParameters
+    ) {
+        Preconditions.checkNotNull(
+            additionalParameters,
+            "Consumer cannot be null"
+        );
+
+        authStateManager.getCurrentState(authState -> {
+            if (authState == null || authState.getLastTokenResponse() == null) {
+                additionalParameters.accept(Collections.emptyMap());
+            } else {
+                additionalParameters.accept(
+                    authState.getLastTokenResponse().additionalParameters
+                );
+            }
         });
     }
 
