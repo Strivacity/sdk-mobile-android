@@ -97,7 +97,8 @@ FlowResponseCallback callback = new FlowResponseCallback() {
         // handle error
     }
 }
-provider.startFlow(context, callback);
+Map<String, String> additionalRefreshTokenParameters = Map.of("key", "value");
+provider.startFlow(context, callback, additionalRefreshTokenParameters);
 ```
 
 ## Get access token
@@ -121,7 +122,8 @@ FlowResponseCallback callback = new FlowResponseCallback() {
         // handle error
     }
 }
-provider.getAccessToken(callback);
+Map<String, String> additionalRefreshTokenParameters = Map.of("key", "value");
+provider.getAccessToken(callback, additionalRefreshTokenParameters);
 ```
 
 ## Get claims
@@ -133,6 +135,16 @@ If there wasn't any claim, null returns.
 ```text
 provider.getLastRetrievedClaims((claims) -> {
     // process claims
+});
+```
+
+## Get last token additional parameters
+
+If you are using token refreshing to renew your access token, you have the possibility to create a token refresh hook in the Admin Console
+and pass additional information from the hook back to the mobile next to the new tokens. To do this, just use the following code.
+```text
+provider.getLastTokenResponseAdditionalParameters((additionalParameters) -> {
+    // process additional parameters
 });
 ```
 
@@ -156,9 +168,10 @@ provider.logout(context, callback);
 There is a method where you can check if the auth state stored in the storage is authenticated or not.
 
 ```text
+Map<String, String> additionalRefreshTokenParameters = Map.of("key", "value");
 provider.checkAuthenticated(isAuthenticated -> {
     // add some logic here
-});
+}, additionalRefreshTokenParameters);
 ```
 ## Building
 To build using gradle, there are a number of required dependencies:
