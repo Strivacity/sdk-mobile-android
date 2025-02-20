@@ -24,9 +24,14 @@
 
 		</LinearLayout>
 
-		<TableLayout android:id="@+id/table"
+		<TableLayout android:id="@+id/claims"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content">
+		</TableLayout>
+
+		<TableLayout android:id="@+id/additionalParams"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content" android:paddingTop="20dp">
 		</TableLayout>
 	</LinearLayout>
 

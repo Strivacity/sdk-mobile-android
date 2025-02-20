@@ -96,7 +96,8 @@ public class LoginFragment extends Fragment {
                                                 exception.toString()
                                             );
                                         }
-                                    }
+                                    },
+                                    Map.of("testKey", "testValue")
                                 )
                             );
                     })

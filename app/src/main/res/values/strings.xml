@@ -4,5 +4,5 @@
 	<string name="access_token">Access Token</string>
 	<string name="logout">Logout</string>
 	<string name="get_last_claims">Get last claims</string>
-	<string name="get_access_token">Get Access Token</string>
+	<string name="get_access_token">Get Access Token and additional params</string>
 </resources>
