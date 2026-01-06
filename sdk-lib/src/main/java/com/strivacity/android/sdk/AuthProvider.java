@@ -29,7 +29,9 @@ import net.openid.appauth.connectivity.DefaultConnectionBuilder;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,6 +61,8 @@ public class AuthProvider {
 
     private String[] scopes;
     private String[] prompts;
+    private String[] audiences;
+
     private String loginHint;
     private String acrValues;
     private String uiLocales;
@@ -93,14 +97,13 @@ public class AuthProvider {
      * <p>Default scopes: <i>openid, offline</i>. You can define more scopes using {@link com.strivacity.android.sdk.AuthProvider#withScopes} function.</p>
      * <p>Please make sure you enabled refresh tokens in the client instance on admin console.</p>
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
-     * @param context Application context
-     * @param issuer The issuer URL
-     * @param clientId Client ID of the client
+     * @param context     Application context
+     * @param issuer      The issuer URL
+     * @param clientId    Client ID of the client
      * @param redirectUri Redirect URI that is registered in the client
-     * @param storage (Optional) Own implementation of a storage, where the auth state is stored
+     * @param storage     (Optional) Own implementation of a storage, where the auth state is stored
      * @return {@link com.strivacity.android.sdk.AuthProvider} instance
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @NonNull
     @SuppressWarnings("unused")
@@ -143,10 +146,9 @@ public class AuthProvider {
      * <p>Default scopes: <i>openid, offline</i>.</p>
      * <p>Please make sure you enabled refresh tokens in the client instance on admin console.</p>
      *
-     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims">Requesting Claims using Scope Values</a>
-     *
      * @param scopes Scopes you want to send
      * @return {@link AuthProvider} instance
+     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims">Requesting Claims using Scope Values</a>
      */
     @NonNull
     @SuppressWarnings("unused")
@@ -158,10 +160,9 @@ public class AuthProvider {
     /**
      * With this method, you can define the login hint.
      *
-     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
-     *
      * @param loginHint Hint about the login identifier
      * @return {@link AuthProvider} instance
+     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
      */
     @NonNull
     @SuppressWarnings("unused")
@@ -173,10 +174,9 @@ public class AuthProvider {
     /**
      * With this method, you can define the acr values.
      *
-     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
-     *
      * @param acrValues Requested authentication context class reference values
      * @return {@link AuthProvider} instance
+     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
      */
     @NonNull
     @SuppressWarnings("unused")
@@ -186,12 +186,25 @@ public class AuthProvider {
     }
 
     /**
-     * With this method, you can define the ui locales.
+     * With this method, you can define the audiences.
      *
-     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
+     * @param audiences Requested audience values
+     * @return {@link AuthProvider} instance
+     * @see <a href="https://docs.strivacity.com/docs/oauth2-oidc-properties-setup#allowed-custom-audiences">Custom Audiences documentation</a>
+     */
+    @NonNull
+    @SuppressWarnings("unused")
+    public AuthProvider withAudiences(String... audiences) {
+        this.audiences = audiences;
+        return this;
+    }
+
+    /**
+     * With this method, you can define the ui locales.
      *
      * @param uiLocales End-user's preferred languages
      * @return {@link AuthProvider} instance
+     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
      */
     @NonNull
     @SuppressWarnings("unused")
@@ -203,10 +216,9 @@ public class AuthProvider {
     /**
      * With this method, you can add prompts.
      *
-     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
-     *
      * @param prompts Prompts for reauthentication or consent of the End-User
      * @return {@link AuthProvider} instance
+     * @see <a href="https://openid.net/specs/openid-connect-core-1_0.html#AuthorizationEndpoint">OpenID Connect Authorization Endpoint section</a>
      */
     @NonNull
     @SuppressWarnings("unused")
@@ -218,10 +230,9 @@ public class AuthProvider {
     /**
      * With this method, you can define the redirection URL after logout.
      *
-     * @see <a href="https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout">Redirection to RP After Logout</a>
-     *
      * @param postLogoutUri Redirection URL after a logout
      * @return {@link AuthProvider} instance
+     * @see <a href="https://openid.net/specs/openid-connect-rpinitiated-1_0.html#RedirectionAfterLogout">Redirection to RP After Logout</a>
      */
     @NonNull
     @SuppressWarnings("unused")
@@ -239,12 +250,11 @@ public class AuthProvider {
      *
      * <p>Please make sure your client's "Token endpoint authentication method" is set to "None" on admin console!</p>
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
-     * @param context Application context
+     * @param context  Application context
      * @param callback {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
-     * method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
-     * called from the main thread.
+     *                 method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
+     *                 called from the main thread.
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @SuppressWarnings("unused")
     public void startFlow(
@@ -263,13 +273,12 @@ public class AuthProvider {
      *
      * <p>Please make sure your client's "Token endpoint authentication method" is set to "None" on admin console!</p>
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
-     * @param context Application context
-     * @param callback {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
-     * method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
-     * called from the main thread.
+     * @param context                      Application context
+     * @param callback                     {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
+     *                                     method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
+     *                                     called from the main thread.
      * @param refreshTokenAdditionalParams Additional key-value parameter for token refreshing
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @SuppressWarnings("unused")
     public void startFlow(
@@ -391,6 +400,14 @@ public class AuthProvider {
                                     configuration
                                 );
 
+                                Log.d(
+                                    "AuthProvider",
+                                    String.format(
+                                        "Authorization URL: %s",
+                                        authorizationRequest.toUri()
+                                    )
+                                );
+
                                 authService.performAuthorizationRequest(
                                     authorizationRequest,
                                     completePendingIntent,
@@ -417,11 +434,10 @@ public class AuthProvider {
      * method is called. Only the accessToken can have non null value in {@link com.strivacity.android.sdk.FlowResponseCallback#success}
      * parameters. Claims are also returned if those are presented.
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
      * @param callback {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
-     * method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
-     * called from the main thread.
+     *                 method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
+     *                 called from the main thread.
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @SuppressWarnings("unused")
     public void getAccessToken(@NonNull FlowResponseCallback callback) {
@@ -434,12 +450,11 @@ public class AuthProvider {
      * method is called. Only the accessToken can have non null value in {@link com.strivacity.android.sdk.FlowResponseCallback#success}
      * parameters. Claims are also returned if those are presented.
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
-     * @param callback {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
-     * method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
-     * called from the main thread.
+     * @param callback                     {@link com.strivacity.android.sdk.FlowResponseCallback} instance that is called from this
+     *                                     method for return the accessToken and claims, or any error messages. Important: those functions sometimes are not
+     *                                     called from the main thread.
      * @param refreshTokenAdditionalParams Additional key-value parameter for token refreshing
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @SuppressWarnings("unused")
     public void getAccessToken(
@@ -500,11 +515,10 @@ public class AuthProvider {
      * page of the Strivacity application if it successfully logged out the account. If the logout is
      * performed, then {@link com.strivacity.android.sdk.EndSessionCallback#finish} function called.
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
-     * @param context Application context
+     * @param context  Application context
      * @param callback {@link com.strivacity.android.sdk.EndSessionCallback} instance that is called
-     * after logout performed. Important: that function sometimes is not called from the main thread.
+     *                 after logout performed. Important: that function sometimes is not called from the main thread.
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @SuppressWarnings("unused")
     public void logout(
@@ -572,9 +586,8 @@ public class AuthProvider {
      * tries to refresh the access token if needed. If the state is not authenticated or
      * it cannot refresh the access token, false returns, otherwise true.
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
      * @param authenticated This returns if the state is authenticated or not
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @SuppressWarnings("unused")
     public void checkAuthenticated(@NonNull Consumer<Boolean> authenticated) {
@@ -586,10 +599,9 @@ public class AuthProvider {
      * tries to refresh the access token if needed. If the state is not authenticated or
      * it cannot refresh the access token, false returns, otherwise true.
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
-     * @param authenticated This returns if the state is authenticated or not
+     * @param authenticated                This returns if the state is authenticated or not
      * @param refreshTokenAdditionalParams Additional parameters for token refreshing (can be accessible in refresh token hook)
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     @SuppressWarnings("unused")
     public void checkAuthenticated(
@@ -635,9 +647,8 @@ public class AuthProvider {
      * useful if you are using token refresh hook and you would like to pass additional information
      * back to your application.
      *
-     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
-     *
      * @param additionalParameters This returns additional parameters (can be empty if not exist)
+     * @throws NullPointerException if any field annotated with {@link androidx.annotation.NonNull} has null value
      */
     public void getLastTokenResponseAdditionalParameters(
         @NonNull Consumer<Map<String, String>> additionalParameters
@@ -680,12 +691,6 @@ public class AuthProvider {
             requestBuilder.setLoginHint(loginHint);
         }
 
-        if (acrValues != null) {
-            requestBuilder.setAdditionalParameters(
-                Map.of("acr_values", acrValues)
-            );
-        }
-
         if (uiLocales != null) {
             requestBuilder.setUiLocales(this.uiLocales);
         }
@@ -693,6 +698,25 @@ public class AuthProvider {
         if (prompts != null) {
             requestBuilder.setPromptValues(prompts);
         }
+
+        Map<String, String> additionalParams = new HashMap<>();
+
+        if (acrValues != null) {
+            additionalParams.put("acr_values", acrValues);
+        }
+
+        Optional
+            .ofNullable(audiences)
+            .map(auds ->
+                Arrays
+                    .stream(auds)
+                    .filter(s -> s != null && !s.isBlank())
+                    .collect(Collectors.joining(" "))
+            )
+            .filter(s -> !s.isBlank())
+            .ifPresent(audParam -> additionalParams.put("audience", audParam));
+
+        requestBuilder.setAdditionalParameters(additionalParams);
 
         return requestBuilder.build();
     }
@@ -760,6 +784,7 @@ public class AuthProvider {
 
     interface AuthActivityCallback {
         void success(AuthorizationResponse response);
+
         void failure(AuthFlowException exception);
     }
 
