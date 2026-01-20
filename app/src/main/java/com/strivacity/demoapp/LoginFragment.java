@@ -108,12 +108,12 @@ public class LoginFragment extends Fragment {
                         view
                             .findViewById(R.id.startFlow)
                             .setOnClickListener(v -> {
-                                String inputText = Objects
+                                String audiencesInputText = Objects
                                     .requireNonNull(audiencesInput.getText())
                                     .toString();
-                                String[] audiences = inputText.isBlank()
+                                String[] audiences = audiencesInputText.isBlank()
                                     ? null
-                                    : inputText.split("\\s+");
+                                    : audiencesInputText.split("\\s+");
 
                                 authProvider
                                     .withAudiences(audiences)
