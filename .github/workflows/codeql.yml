@@ -94,6 +94,7 @@ jobs:
 
       - name: Generate and submit dependency graph
         uses: gradle/actions/dependency-submission@v3
+        if: github.event.pull_request.head.repo.full_name == github.repository
         env:
           # Do not include test and plugin dependencies in the report
           DEPENDENCY_GRAPH_INCLUDE_CONFIGURATIONS: '.*(annotationProcessor|compileClasspath|productionRuntimeClasspath|runtimeClasspath).*'
