@@ -10,7 +10,8 @@
 	<com.google.android.material.textfield.TextInputLayout
 		android:id="@+id/text_input_layout_audiences"
 		android:layout_width="match_parent"
-		android:layout_height="wrap_content" android:hint="@string/text_input_hint_custom_audiences"
+		android:layout_height="wrap_content"
+		android:hint="@string/text_input_hint_custom_audiences"
 		app:endIconContentDescription="Info"
 		app:endIconDrawable="@drawable/ic_help" app:endIconMode="custom"
 		app:helperText="Audiences separated by space">
