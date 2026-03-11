@@ -229,7 +229,19 @@ public class AuthProviderIT {
                         ISSUER_ID +
                         "/oauth2redirect"
                     ),
-                    null
+                    null,
+                    new FlowResponseCallback() {
+                        @Override
+                        public void success(
+                            @Nullable String accessToken,
+                            @Nullable Map<String, Object> claims
+                        ) {}
+
+                        @Override
+                        public void failure(
+                            @NonNull AuthFlowException exception
+                        ) {}
+                    }
                 )
                 .withScopes("scope1", "scope2")
                 .withLoginHint("login_hint")

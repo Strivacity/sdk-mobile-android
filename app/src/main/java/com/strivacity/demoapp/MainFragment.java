@@ -62,15 +62,7 @@ public class MainFragment extends Fragment {
                                 authProvider.logout(
                                     requireContext(),
                                     () -> {
-                                        Log.i(TAG, "logout callback");
-                                        Navigation
-                                            .findNavController(
-                                                requireActivity(),
-                                                R.id.nav_host_fragment
-                                            )
-                                            .navigate(
-                                                R.id.action_mainFragment_to_loginFragment
-                                            );
+                                        Log.i(TAG, "Call site LOGOUT FINISH");
                                     }
                                 );
                             });

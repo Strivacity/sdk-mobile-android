@@ -15,6 +15,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import net.openid.appauth.AuthState;
+import net.openid.appauth.AuthorizationException;
 import net.openid.appauth.AuthorizationRequest;
 import net.openid.appauth.AuthorizationResponse;
 import net.openid.appauth.AuthorizationService;
@@ -53,7 +54,7 @@ public class AuthProvider {
 
     private final ConnectionBuilder defaultConnectionBuilder;
     private final AuthorizationService authService;
-    final AuthStateManager authStateManager;
+    private final AuthStateManager authStateManager;
 
     private final Uri issuer;
     private final String clientId;
@@ -68,19 +69,59 @@ public class AuthProvider {
     private String uiLocales;
     private Uri postLogoutUri;
 
-    AuthActivityCallback authActivityCallback;
-    EndSessionActivityCallback endSessionActivityCallback;
+    @Nullable
+    private FlowResponseCallback flowResponseCallback;
+
+    @Nullable
+    private EndSessionCallback endSessionCallback;
+
+    @NonNull
+    private final FlowResponseCallback sessionChangeCallback;
 
     private AuthProvider(
         Context context,
         Uri issuer,
         String clientId,
         Uri redirectUri,
-        Storage storage
+        Storage storage,
+        FlowResponseCallback sessionChangeCallback
     ) {
         this.issuer = issuer;
         this.clientId = clientId;
         this.redirectUri = redirectUri;
+
+        this.sessionChangeCallback =
+            new FlowResponseCallback() {
+                @Override
+                public void success(
+                    @Nullable String accessToken,
+                    @Nullable Map<String, Object> claims
+                ) {
+                    Log.i(TAG, "Flow completed successfully");
+                    sessionChangeCallback.success(accessToken, claims);
+                    if (flowResponseCallback != null) {
+                        flowResponseCallback.success(accessToken, claims);
+                    }
+                    if (endSessionCallback != null) {
+                        endSessionCallback.finish();
+                    }
+                    endSessionCallback = null;
+                    flowResponseCallback = null;
+                }
+
+                @Override
+                public void failure(@NonNull AuthFlowException exception) {
+                    Log.i(TAG, "Flow failed", exception);
+                    sessionChangeCallback.failure(exception);
+                    if (flowResponseCallback != null) {
+                        flowResponseCallback.failure(exception);
+                    }
+                    if (endSessionCallback != null) {
+                        endSessionCallback.finish();
+                    }
+                    flowResponseCallback = null;
+                }
+            };
 
         defaultConnectionBuilder = DefaultConnectionBuilder.INSTANCE;
         authStateManager = new AuthStateManager(storage);
@@ -112,12 +153,17 @@ public class AuthProvider {
         @NonNull Uri issuer,
         @NonNull String clientId,
         @NonNull Uri redirectUri,
-        @Nullable Storage storage
+        @Nullable Storage storage,
+        @NonNull FlowResponseCallback sessionChangeCallback
     ) {
         Preconditions.checkNotNull(context, "Context cannot be null");
         Preconditions.checkNotNull(issuer, "Issuer cannot be null");
         Preconditions.checkNotNull(clientId, "Client ID cannot be null");
         Preconditions.checkNotNull(redirectUri, "Redirect URI cannot be null");
+        Preconditions.checkNotNull(
+            sessionChangeCallback,
+            "Session change callback cannot be null"
+        );
 
         if (INSTANCE != null) {
             Log.w(
@@ -132,10 +178,45 @@ public class AuthProvider {
                 issuer,
                 clientId,
                 redirectUri,
-                storage == null ? new StorageImpl(context) : storage
+                storage == null ? new StorageImpl(context) : storage,
+                sessionChangeCallback
             );
 
         return INSTANCE;
+    }
+
+    void continueAuthorization(@NonNull Intent intent) {
+        Preconditions.checkNotNull(
+            intent,
+            "Expecting authorization intent to be non-null"
+        );
+
+        AuthorizationResponse response = AuthorizationResponse.fromIntent(
+            intent
+        );
+        AuthorizationException exception = AuthorizationException.fromIntent(
+            intent
+        );
+
+        authStateManager.updateCurrentState(response, exception);
+
+        if (response != null) {
+            Log.i(TAG, "authorization success");
+            performTokenRequest(response);
+        } else {
+            Log.w(TAG, "authorization failed");
+            if (exception != null) {
+                sessionChangeCallback.failure(
+                    AuthFlowException.of(
+                        exception.error,
+                        exception.errorDescription,
+                        exception.getCause()
+                    )
+                );
+            } else {
+                sessionChangeCallback.failure(AuthFlowException.UNEXPECTED);
+            }
+        }
     }
 
     /**
@@ -283,18 +364,19 @@ public class AuthProvider {
     @SuppressWarnings("unused")
     public void startFlow(
         @NonNull Context context,
-        @NonNull FlowResponseCallback callback,
+        @Nullable FlowResponseCallback callback,
         Map<String, String> refreshTokenAdditionalParams
     ) {
         Preconditions.checkNotNull(context, "Context cannot be null");
-        Preconditions.checkNotNull(callback, "Callback cannot be null");
+
+        flowResponseCallback = callback;
 
         AuthorizationServiceConfiguration.fetchFromIssuer(
             issuer,
             (configuration, ex) -> {
                 if (ex != null) {
                     Log.w(TAG, "error during getting configuration");
-                    callback.failure(
+                    sessionChangeCallback.failure(
                         AuthFlowException.of(
                             ex.error,
                             ex.errorDescription,
@@ -306,7 +388,7 @@ public class AuthProvider {
 
                 if (configuration == null) {
                     Log.w(TAG, "configuration was not found");
-                    callback.failure(AuthFlowException.UNEXPECTED);
+                    sessionChangeCallback.failure(AuthFlowException.UNEXPECTED);
                     return;
                 }
 
@@ -347,7 +429,7 @@ public class AuthProvider {
                             if (isAuthenticated) {
                                 Log.i(TAG, "state is authorized");
 
-                                callback.success(
+                                sessionChangeCallback.success(
                                     authState.getAccessToken(),
                                     extractClaimsFromAuthState(authState)
                                 );
@@ -360,30 +442,10 @@ public class AuthProvider {
                                     flags |= PendingIntent.FLAG_MUTABLE;
                                 }
 
-                                authActivityCallback =
-                                    new AuthActivityCallback() {
-                                        @Override
-                                        public void success(
-                                            AuthorizationResponse response
-                                        ) {
-                                            Log.i(
-                                                TAG,
-                                                "success callback, performing token request"
-                                            );
-                                            performTokenRequest(
-                                                callback,
-                                                response
-                                            );
-                                        }
-
-                                        @Override
-                                        public void failure(
-                                            AuthFlowException exception
-                                        ) {
-                                            Log.i(TAG, "failure callback");
-                                            callback.failure(exception);
-                                        }
-                                    };
+                                // store optional callback to notify call site about the result of auth attempt
+                                // in case of process death, this will be null and original call site will not
+                                // get notified about the result
+                                flowResponseCallback = callback;
 
                                 Intent completeIntent = new Intent(
                                     context,
@@ -523,17 +585,18 @@ public class AuthProvider {
     @SuppressWarnings("unused")
     public void logout(
         @NonNull Context context,
-        @NonNull EndSessionCallback callback
+        @Nullable EndSessionCallback callback
     ) {
         Preconditions.checkNotNull(context, "Context cannot be null");
-        Preconditions.checkNotNull(callback, "Callback cannot be null");
+
+        endSessionCallback = callback;
 
         authStateManager.getCurrentState(authState -> {
             AuthorizationServiceConfiguration configuration = authState.getAuthorizationServiceConfiguration();
 
             if (configuration == null) {
                 authStateManager.resetCurrentState();
-                callback.finish();
+                sessionChangeCallback.success(null, null);
             } else {
                 EndSessionRequest.Builder endSessionRequestBuilder = new EndSessionRequest.Builder(
                     configuration
@@ -552,8 +615,6 @@ public class AuthProvider {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     flags |= PendingIntent.FLAG_MUTABLE;
                 }
-
-                endSessionActivityCallback = callback::finish;
 
                 Intent endSessionIntent = new Intent(
                     context,
@@ -579,6 +640,13 @@ public class AuthProvider {
                 authStateManager.setCurrentState(new AuthState(configuration));
             }
         });
+    }
+
+    /**
+     * Invoked when Logout has completed from {@link EndSessionActivity}
+     */
+    void continueLogout() {
+        sessionChangeCallback.success(null, null);
     }
 
     /**
@@ -721,12 +789,9 @@ public class AuthProvider {
         return requestBuilder.build();
     }
 
-    private void performTokenRequest(
-        FlowResponseCallback callback,
-        AuthorizationResponse response
-    ) {
+    private void performTokenRequest(AuthorizationResponse response) {
         if (response == null) {
-            callback.failure(AuthFlowException.UNEXPECTED);
+            sessionChangeCallback.failure(AuthFlowException.UNEXPECTED);
             return;
         }
 
@@ -742,13 +807,13 @@ public class AuthProvider {
                         );
 
                         if (tokenResponse != null) {
-                            callback.success(
+                            sessionChangeCallback.success(
                                 tokenResponse.accessToken,
                                 extractClaimsFromAuthState(authState)
                             );
                         } else {
                             if (exception != null) {
-                                callback.failure(
+                                sessionChangeCallback.failure(
                                     AuthFlowException.of(
                                         exception.error,
                                         exception.errorDescription,
@@ -756,13 +821,15 @@ public class AuthProvider {
                                     )
                                 );
                             } else {
-                                callback.failure(AuthFlowException.UNEXPECTED);
+                                sessionChangeCallback.failure(
+                                    AuthFlowException.UNEXPECTED
+                                );
                             }
                         }
                     }
                 );
             } catch (ClientAuthentication.UnsupportedAuthenticationMethod ex) {
-                callback.failure(
+                sessionChangeCallback.failure(
                     AuthFlowException.unsupportedAuthenticationMethod(
                         ex.getUnsupportedAuthenticationMethod(),
                         ex.getCause()
@@ -780,15 +847,5 @@ public class AuthProvider {
             return null;
         }
         return parsedToken.additionalClaims;
-    }
-
-    interface AuthActivityCallback {
-        void success(AuthorizationResponse response);
-
-        void failure(AuthFlowException exception);
-    }
-
-    interface EndSessionActivityCallback {
-        void finished();
     }
 }
