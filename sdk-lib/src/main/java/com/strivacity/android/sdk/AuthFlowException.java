@@ -26,16 +26,16 @@ public class AuthFlowException extends Exception {
     }
 
     static AuthFlowException of(
-        String error,
-        String errorDescription,
-        Throwable rootCause
+        @Nullable String error,
+        @Nullable String errorDescription,
+        @Nullable Throwable rootCause
     ) {
         if (error == null && errorDescription == null) {
-            return new AuthFlowException(
-                null,
-                rootCause.getMessage(),
-                rootCause
-            );
+            @Nullable
+            final String causeMessage = rootCause == null
+                ? "Unknown cause"
+                : rootCause.getMessage();
+            return new AuthFlowException(null, causeMessage, rootCause);
         }
         return new AuthFlowException(error, errorDescription, rootCause);
     }

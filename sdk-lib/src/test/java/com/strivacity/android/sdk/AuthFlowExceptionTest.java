@@ -109,6 +109,19 @@ public class AuthFlowExceptionTest {
     }
 
     @Test
+    public void ofWithoutRootCauseWithErrorAndWithoutDescription() {
+        AuthFlowException authFlowException = AuthFlowException.of(
+            "error",
+            null,
+            null
+        );
+        assertThat(authFlowException.getError(), is("error"));
+        assertThat(authFlowException.getErrorDescription(), is(nullValue()));
+        assertThat(authFlowException.toString(), is("error - null"));
+        assertThat(authFlowException.getCause(), is(nullValue()));
+    }
+
+    @Test
     public void ofWithRootCauseWithoutErrorAndWithDescription() {
         Exception rootCause = new Exception("exception");
         AuthFlowException authFlowException = AuthFlowException.of(
@@ -120,5 +133,48 @@ public class AuthFlowExceptionTest {
         assertThat(authFlowException.getErrorDescription(), is("description"));
         assertThat(authFlowException.toString(), is("null - description"));
         assertThat(authFlowException.getCause().getMessage(), is("exception"));
+    }
+
+    @Test
+    public void ofWithoutRootCauseAndWithoutErrorAndWithDescription() {
+        AuthFlowException authFlowException = AuthFlowException.of(
+            null,
+            "description",
+            null
+        );
+        assertThat(authFlowException.getError(), is(nullValue()));
+        assertThat(authFlowException.getErrorDescription(), is("description"));
+        assertThat(authFlowException.toString(), is("null - description"));
+        assertThat(authFlowException.getCause(), is(nullValue()));
+    }
+
+    @Test
+    public void ofWithoutRootCauseAndWithoutErrorAndDescription() {
+        AuthFlowException authFlowException = AuthFlowException.of(
+            null,
+            null,
+            null
+        );
+        assertThat(authFlowException.getError(), is(nullValue()));
+        assertThat(
+            authFlowException.getErrorDescription(),
+            is("Unknown cause")
+        );
+        assertThat(authFlowException.toString(), is("null - Unknown cause"));
+        assertThat(authFlowException.getCause(), is(nullValue()));
+    }
+
+    @Test
+    public void ofWithRootCauseWithNullMessageAndWithoutErrorAndDescription() {
+        Exception rootCause = new Exception((String) null);
+        AuthFlowException authFlowException = AuthFlowException.of(
+            null,
+            null,
+            rootCause
+        );
+        assertThat(authFlowException.getError(), is(nullValue()));
+        assertThat(authFlowException.getErrorDescription(), is(nullValue()));
+        assertThat(authFlowException.toString(), is("null - null"));
+        assertThat(authFlowException.getCause(), is(rootCause));
     }
 }
