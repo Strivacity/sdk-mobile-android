@@ -13,6 +13,9 @@ android {
 		targetSdk 33
 
 		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+		testInstrumentationRunnerArguments = [
+			"notAnnotation": "com.strivacity.android.sdk.testfilters.NoBrowserEnvironment"
+		]
 		consumerProguardFiles "consumer-rules.pro"
 		aarMetadata {
 			minCompileSdk = 26

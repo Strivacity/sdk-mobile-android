@@ -1,6 +1,7 @@
 package com.strivacity.android.sdk;
 
 import android.app.PendingIntent;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -469,17 +470,30 @@ public class AuthProvider {
                                         authorizationRequest.toUri()
                                     )
                                 );
-
-                                authService.performAuthorizationRequest(
-                                    authorizationRequest,
-                                    completePendingIntent,
-                                    completePendingIntent,
-                                    authService
-                                        .createCustomTabsIntentBuilder(
-                                            authorizationRequest.toUri()
+                                try {
+                                    authService.performAuthorizationRequest(
+                                        authorizationRequest,
+                                        completePendingIntent,
+                                        completePendingIntent,
+                                        authService
+                                            .createCustomTabsIntentBuilder(
+                                                authorizationRequest.toUri()
+                                            )
+                                            .build()
+                                    );
+                                } catch (ActivityNotFoundException e) {
+                                    Log.w(
+                                        TAG,
+                                        "Could not resolve activity to " +
+                                        "open, likely no compatible browser is present on device",
+                                        e
+                                    );
+                                    sessionChangeCallback.failure(
+                                        AuthFlowException.browserIntentResolutionFailed(
+                                            e
                                         )
-                                        .build()
-                                );
+                                    );
+                                }
                             }
                         },
                         refreshTokenAdditionalParams

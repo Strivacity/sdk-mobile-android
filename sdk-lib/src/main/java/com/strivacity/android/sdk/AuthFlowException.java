@@ -51,6 +51,14 @@ public class AuthFlowException extends Exception {
         );
     }
 
+    static AuthFlowException browserIntentResolutionFailed(Throwable rootCase) {
+        return new AuthFlowException(
+            "BrowserIntentResolutionFailed",
+            "No compatible browser found on device",
+            rootCase
+        );
+    }
+
     @Nullable
     @SuppressWarnings("unused")
     public String getError() {
