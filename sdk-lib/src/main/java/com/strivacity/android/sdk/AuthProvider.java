@@ -341,7 +341,7 @@ public class AuthProvider {
     @SuppressWarnings("unused")
     public void startFlow(
         @NonNull Context context,
-        @NonNull FlowResponseCallback callback
+        @Nullable FlowResponseCallback callback
     ) {
         startFlow(context, callback, Collections.emptyMap());
     }
