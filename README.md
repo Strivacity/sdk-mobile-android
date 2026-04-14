@@ -59,7 +59,8 @@ AuthProvider provider = AuthProvider.create(
     issuer,                                      // specifies authentication server domain
     clientId,                                    // specifies OAuth client ID
     redirectUri,                                 // specifies the redirect uri
-    storage                                      // optional, you can provide the storage logic you implemented using Storage interface, or use the default unsecure storage logic
+    storage,                                     // optional, you can provide the storage logic you implemented using Storage interface, or use the default unsecure storage logic
+    sessionChangeCallback                        // mandatory callback invoked when there is a change in login state
 );
 ```
 
@@ -82,6 +83,9 @@ provider
 After a successful set up, you can use the startFlow method to initiate the login process.  
 You have to provide the context, and define a callback which is called from this method.
 
+> **NOTE:** consider these callbacks "best-effort". In case of process death, these callbacks are not recoverable.
+> Rely on the callback defined in `AuthProvider.create()`
+
 ```text
 FlowResponseCallback callback = new FlowResponseCallback() {
     @Override
@@ -89,12 +93,12 @@ FlowResponseCallback callback = new FlowResponseCallback() {
         @Nullable String accessToken,
         @Nullable Map<String, Object> claims
     ) {
-        // add success logic here
+        // add success login with best-effort delivery
     }
     
     @Override
     public void failure(@NonNull AuthFlowException exception) {
-        // handle error
+        // handle error with best-effort delivery
     }
 }
 Map<String, String> additionalRefreshTokenParameters = Map.of("key", "value");
@@ -192,13 +196,11 @@ To publish this packages to Maven Central, you'll need to do the following:
    - `signing.password` - password of key
    - `signing.secretKeyRingFile` - gpg keyring containing secret key
      - run `gpg --export-secret-keys -o your-keyring.gpg` to create the file
- - Set `OSSRH_USERNAME` and `OSSRH_PASSWORD` environment variables containing sonatype nexus tokens
-   - Login to https://s01.oss.sonatype.org/, and use the User Token from your profile for these values
- - Invoke the following command, with the appropriate version:
+   - Create signed zip for upload to Maven Central
+
 ```shell
-./gradlew -Pversion=2.1.0 -d publish
+./gradlew :sdk-lib:zipStagingBundle -Pversion=SEMVER
 ```
-After successful publish, you will have to follow [these instructions](https://central.sonatype.org/publish/release/) to "Close" and "Drop" or "Release" your staging repository.  Once released, it will be sync'd to Maven central and should show up within a few minutes.
 
 ## Author
 

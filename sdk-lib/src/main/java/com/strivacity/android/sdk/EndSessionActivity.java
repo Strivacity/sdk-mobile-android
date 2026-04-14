@@ -17,7 +17,7 @@ public class EndSessionActivity extends Activity {
             );
             return;
         }
-        AuthProvider.INSTANCE.endSessionActivityCallback.finished();
+        AuthProvider.INSTANCE.continueLogout();
         finish();
     }
 }

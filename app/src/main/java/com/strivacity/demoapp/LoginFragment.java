@@ -114,7 +114,6 @@ public class LoginFragment extends Fragment {
                                 String[] audiences = audiencesInputText.isBlank()
                                     ? null
                                     : audiencesInputText.split("\\s+");
-
                                 authProvider
                                     .withAudiences(audiences)
                                     .startFlow(
@@ -129,14 +128,6 @@ public class LoginFragment extends Fragment {
                                                     TAG,
                                                     "start flow success"
                                                 );
-                                                Navigation
-                                                    .findNavController(
-                                                        requireActivity(),
-                                                        R.id.nav_host_fragment
-                                                    )
-                                                    .navigate(
-                                                        R.id.action_loginFragment_to_mainFragment
-                                                    );
                                             }
 
                                             @Override
@@ -145,8 +136,12 @@ public class LoginFragment extends Fragment {
                                             ) {
                                                 Log.d(
                                                     TAG,
-                                                    "start flow failure"
+                                                    "Call site failure callback"
                                                 );
+                                                // NOTE: do not rely on this callback for navigation or changing app state
+                                                // as this callback will not survive a process death scenario
+                                                // Use this to provide localized feedback on UI or rely on sessionChangeCallback
+                                                // which will also receive the exception in failure scenario
                                                 errorText.setText(
                                                     exception.toString()
                                                 );
