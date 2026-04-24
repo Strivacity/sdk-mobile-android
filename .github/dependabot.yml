@@ -4,10 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-
-     # default is random time
-     # time: "16:35"
-     # timezone: "America/New_York"
+      #time: "11:00" # default is random time
+      #timezone: "Europe/Budapest"
 
     # default is default branch
     # target-branch: "branch"
