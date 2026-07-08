@@ -20,6 +20,7 @@ import androidx.navigation.Navigation;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.strivacity.android.sdk.AuthFlowException;
+import com.strivacity.android.sdk.AuthProvider;
 import com.strivacity.android.sdk.FlowResponseCallback;
 
 import java.util.Collections;
@@ -47,10 +48,39 @@ public class LoginFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         final Context context = view.getContext();
-        final Uri docsPage = Uri.parse(
-            getString(R.string.docs_url_custom_audiences)
+
+        TextInputEditText audiencesInput = view.findViewById(
+            R.id.text_input_audiences
         );
-        final Intent openActionsDocs = new Intent(Intent.ACTION_VIEW, docsPage);
+        TextView errorText = view.findViewById(R.id.errortext);
+
+        if (savedInstanceState != null) {
+            errorText.setText(savedInstanceState.getString("EXTRA_ERROR_TEXT"));
+        }
+
+        setupAudiencesDocsLink(view, context);
+
+        SharedViewModel viewModel = new ViewModelProvider(requireActivity())
+            .get(SharedViewModel.class);
+        viewModel
+            .getProvider()
+            .observe(
+                getViewLifecycleOwner(),
+                authProvider ->
+                    view.post(() ->
+                        onAuthProviderReady(
+                            view,
+                            authProvider,
+                            audiencesInput,
+                            errorText
+                        )
+                    )
+            );
+    }
+
+    private void setupAudiencesDocsLink(View view, Context context) {
+        Uri docsPage = Uri.parse(getString(R.string.docs_url_custom_audiences));
+        Intent openActionsDocs = new Intent(Intent.ACTION_VIEW, docsPage);
 
         TextInputLayout textInputLayout = view.findViewById(
             R.id.text_input_layout_audiences
@@ -59,11 +89,7 @@ public class LoginFragment extends Fragment {
             try {
                 context.startActivity(openActionsDocs);
             } catch (IllegalArgumentException ex) {
-                Log.e(
-                    "FirstFragment",
-                    "Could not open Docs page for custom audiences",
-                    ex
-                );
+                Log.e(TAG, "Could not open Docs page for custom audiences", ex);
                 Toast
                     .makeText(
                         context,
@@ -73,84 +99,69 @@ public class LoginFragment extends Fragment {
                     .show();
             }
         });
+    }
 
-        TextView errorText = view.findViewById(R.id.errortext);
-        if (savedInstanceState != null) {
-            errorText.setText(savedInstanceState.getString("EXTRA_ERROR_TEXT"));
-        }
-
-        TextInputEditText audiencesInput = view.findViewById(
-            R.id.text_input_audiences
-        );
-
-        SharedViewModel viewModel = new ViewModelProvider(requireActivity())
-            .get(SharedViewModel.class);
-        viewModel
-            .getProvider()
-            .observe(
-                getViewLifecycleOwner(),
-                authProvider ->
-                    view.post(() -> {
-                        authProvider.checkAuthenticated(isAuthenticated -> {
-                            if (isAuthenticated) {
-                                Log.i(TAG, "already authenticated");
-                                Navigation
-                                    .findNavController(
-                                        requireActivity(),
-                                        R.id.nav_host_fragment
-                                    )
-                                    .navigate(
-                                        R.id.action_loginFragment_to_mainFragment
-                                    );
-                            }
-                        });
-
-                        view
-                            .findViewById(R.id.startFlow)
-                            .setOnClickListener(v -> {
-                                String audiencesInputText = Objects
-                                    .requireNonNull(audiencesInput.getText())
-                                    .toString();
-                                String[] audiences = audiencesInputText.isBlank()
-                                    ? null
-                                    : audiencesInputText.split("\\s+");
-                                authProvider
-                                    .withAudiences(audiences)
-                                    .startFlow(
-                                        requireContext(),
-                                        new FlowResponseCallback() {
-                                            @Override
-                                            public void success(
-                                                @Nullable String accessToken,
-                                                @Nullable Map<String, Object> claims
-                                            ) {
-                                                Log.d(
-                                                    TAG,
-                                                    "start flow success"
-                                                );
-                                            }
-
-                                            @Override
-                                            public void failure(
-                                                @NonNull AuthFlowException exception
-                                            ) {
-                                                Log.d(
-                                                    TAG,
-                                                    "Call site failure callback"
-                                                );
-                                                // NOTE: do not rely on this callback for navigation or changing app state
-                                                // as this callback will not survive a process death scenario
-                                                // Use this to provide localized feedback on UI or rely on sessionChangeCallback
-                                                // which will also receive the exception in failure scenario
-                                                errorText.setText(
-                                                    exception.toString()
-                                                );
-                                            }
-                                        },
-                                        Collections.emptyMap()
-                                    );
-                            });
-                    })
+    private void onAuthProviderReady(
+        View view,
+        AuthProvider authProvider,
+        TextInputEditText audiencesInput,
+        TextView errorText
+    ) {
+        authProvider.checkAuthenticated(this::navigateIfAuthenticated);
+        view
+            .findViewById(R.id.startFlow)
+            .setOnClickListener(v ->
+                startFlow(authProvider, audiencesInput, errorText)
             );
+    }
+
+    private void navigateIfAuthenticated(boolean isAuthenticated) {
+        if (!isAuthenticated) return;
+        Log.i(TAG, "already authenticated");
+        Navigation
+            .findNavController(requireActivity(), R.id.nav_host_fragment)
+            .navigate(R.id.action_loginFragment_to_mainFragment);
+    }
+
+    private void startFlow(
+        AuthProvider authProvider,
+        TextInputEditText audiencesInput,
+        TextView errorText
+    ) {
+        String audiencesInputText = Objects
+            .requireNonNull(audiencesInput.getText())
+            .toString();
+        String[] audiences = audiencesInputText.isBlank()
+            ? null
+            : audiencesInputText.split("\\s+");
+        authProvider
+            .withAudiences(audiences)
+            .startFlow(
+                requireContext(),
+                startFlowCallback(errorText),
+                Collections.emptyMap()
+            );
+    }
+
+    private FlowResponseCallback startFlowCallback(TextView errorText) {
+        return new FlowResponseCallback() {
+            @Override
+            public void success(
+                @Nullable String accessToken,
+                @Nullable Map<String, Object> claims
+            ) {
+                Log.d(TAG, "start flow success");
+            }
+
+            @Override
+            public void failure(@NonNull AuthFlowException exception) {
+                Log.d(TAG, "Call site failure callback");
+                // NOTE: do not rely on this callback for navigation or changing app state
+                // as this callback will not survive a process death scenario
+                // Use this to provide localized feedback on UI or rely on sessionChangeCallback
+                // which will also receive the exception in failure scenario
+                errorText.setText(exception.toString());
+            }
+        };
     }
 }
