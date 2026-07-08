@@ -41,6 +41,12 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
+/**
+ * Example custom {@link com.strivacity.android.sdk.Storage} implementation for use with AuthProvider.
+ * If the default storage does not meet your requirements, you can provide a custom implementation
+ * like this one. This example encrypts the auth state using AES-GCM via the Android Keystore
+ * and requires biometric authentication for decryption.
+ */
 public class CustomStorageImpl implements Storage {
 
     private static final String TAG = "CustomStorageImpl";
